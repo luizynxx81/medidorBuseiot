@@ -10,11 +10,24 @@ export class GeminiService {
   private ai: GoogleGenAI;
 
   constructor() {
-    // IMPORTANT: This relies on the API key being available as an environment variable.
-    // The check for `process.env.API_KEY` was removed because it causes a
-    // `ReferenceError` in the browser, where `process` is not defined. The execution
-    // environment is expected to substitute `process.env.API_KEY` with a valid key.
-    this.ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    // This logic safely retrieves the API key.
+    // In a browser environment where `process` is not defined, it avoids a ReferenceError.
+    // The build/execution environment is expected to perform a string replacement on
+    // `process.env.API_KEY` before the code reaches the browser.
+    // If that replacement does not happen, we fall back to an empty string and log an error.
+    let apiKey = ''; // Default to an empty string.
+    try {
+      // This is the expression the build tool is expected to replace.
+      // If it's not replaced, `process` will be undefined in the browser and throw a ReferenceError.
+      apiKey = process.env.API_KEY || '';
+    } catch (e) {
+      console.error(
+        'Could not read Gemini API key from environment. ' +
+        'This is expected if the app is running in a browser and the API key was not injected. ' +
+        'The app will continue to run, but Gemini features will not work.'
+      );
+    }
+    this.ai = new GoogleGenAI({ apiKey });
   }
 
   async analyzeStopAccessibility(imageBase64: string): Promise<AccessibilityAnalysis> {
