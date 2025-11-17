@@ -10,17 +10,15 @@ export class GeminiService {
   private ai: GoogleGenAI;
 
   constructor() {
-    // This logic safely retrieves the API key.
-    // In a browser environment where `process` is not defined, it avoids a ReferenceError.
-    // The build/execution environment is expected to perform a string replacement on
-    // `process.env.API_KEY` before the code reaches the browser.
-    // If that replacement does not happen, we fall back to an empty string and log an error.
-    let apiKey = ''; // Default to an empty string.
-    try {
-      // This is the expression the build tool is expected to replace.
-      // If it's not replaced, `process` will be undefined in the browser and throw a ReferenceError.
+    let apiKey = '';
+    // This browser-safe check prevents a ReferenceError if the build tool
+    // fails to replace `process.env.API_KEY`. It first verifies `process` exists
+    // before attempting to access `process.env`.
+    if (typeof process !== 'undefined' && process.env) {
       apiKey = process.env.API_KEY || '';
-    } catch (e) {
+    }
+
+    if (!apiKey) {
       console.error(
         'Could not read Gemini API key from environment. ' +
         'This is expected if the app is running in a browser and the API key was not injected. ' +
