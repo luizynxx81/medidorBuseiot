@@ -59,6 +59,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   // --- CONFIGURATION ---
   readonly REALTIME_SIMULATION_INTERVAL_MS = 2000;
   readonly SCENARIO_SIMULATION_INTERVAL_MS = 1500;
+  readonly RISK_ANALYSIS_INTERVAL_MS = 20000; // New
   readonly MAX_IMAGE_SIZE_MB = 4;
   readonly MAX_LOG_ENTRIES = 5;
 
@@ -75,6 +76,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
   isIncidentFormOpen = signal(false);
   incidentToCreate = signal<{ eventMessage: string; bus: Bus; title?: string; priority?: IncidentPriority; } | null>(null);
   
+  // Risk Analysis State
+  routeRiskScores = signal<Record<string, 'Bajo' | 'Medio' | 'Alto'>>({});
+  isAnalyzingRisk = signal(false);
+  private riskAnalysisInterval: any;
+
   private alertAudio: HTMLAudioElement;
   private isAudioUnlocked = signal(false);
 
@@ -99,7 +105,23 @@ export class DashboardComponent implements OnInit, OnDestroy {
   analysisResult = signal<FeedbackAnalysis | null>(null);
   analysisError = signal<string | null>(null);
 
-  // --- DERIVED COMPUTED SIGNALS (for the selected bus) ---
+  // --- DERIVED COMPUTED SIGNALS ---
+  routes = computed(() => {
+    const busList = this.buses();
+    const grouped = busList.reduce((acc, bus) => {
+      (acc[bus.route] = acc[bus.route] || []).push(bus);
+      return acc;
+    }, {} as Record<string, Bus[]>);
+
+    return Object.entries(grouped).map(([name, buses]) => ({ 
+        name: name.replace(/^Ruta/, 'Paradero'),
+        originalName: name,
+        buses 
+    }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  });
+  
+  // (for the selected bus)
   safetyStatus = computed<'safe' | 'caution' | 'danger' | 'none'>(() => {
     const bus = this.selectedBus();
     const { cautionThreshold, dangerThreshold } = this.settingsService.settings();
@@ -162,10 +184,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.initializeStops();
     this.initializeIncidents();
     this.startRealtimeSimulation();
+    this.startRiskAnalysis();
   }
 
   ngOnDestroy(): void {
     this.stopSimulation();
+    this.stopRiskAnalysis();
   }
   
   initializeBuses(): void {
@@ -211,6 +235,40 @@ export class DashboardComponent implements OnInit, OnDestroy {
     if (this.simulationInterval) {
       clearInterval(this.simulationInterval);
       this.simulationInterval = null;
+    }
+  }
+
+  // --- Risk Analysis Workflow ---
+  startRiskAnalysis(): void {
+    if (this.riskAnalysisInterval) return;
+    this.updateRouteRiskScores(); // Run once immediately
+    this.riskAnalysisInterval = setInterval(() => {
+      this.updateRouteRiskScores();
+    }, this.RISK_ANALYSIS_INTERVAL_MS);
+  }
+
+  stopRiskAnalysis(): void {
+    if (this.riskAnalysisInterval) {
+      clearInterval(this.riskAnalysisInterval);
+      this.riskAnalysisInterval = null;
+    }
+  }
+
+  async updateRouteRiskScores(): Promise<void> {
+    if (this.isAnalyzingRisk()) return;
+    this.isAnalyzingRisk.set(true);
+    try {
+      const scores = await this.geminiService.analyzeRouteRisk(
+        this.buses(),
+        this.stops(),
+        this.incidents()
+      );
+      // Merge new scores with existing ones to avoid blanking out routes if API fails for one
+      this.routeRiskScores.update(currentScores => ({ ...currentScores, ...scores }));
+    } catch (e) {
+      console.error("Failed to update route risk scores:", e);
+    } finally {
+      this.isAnalyzingRisk.set(false);
     }
   }
 
@@ -326,6 +384,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   startScenario(scenario: SimulationScenario): void {
     this.stopSimulation(); // Stop random simulation
+    this.stopRiskAnalysis(); // Stop risk analysis
     this.initializeBuses(); // Reset bus states
     this.initializeIncidents();
     this.simulationUserActions.set([]);
@@ -380,6 +439,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
         this.isSimulationRunning.set(false);
         this.initializeBuses();
         this.startRealtimeSimulation();
+        this.startRiskAnalysis();
     }, 1000);
   }
 

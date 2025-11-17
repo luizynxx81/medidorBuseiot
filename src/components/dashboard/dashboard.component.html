@@ -60,37 +60,62 @@
           <!-- Bus List Card -->
           <div class="bg-slate-100/50 dark:bg-slate-900/70 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
             <h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-4 px-2">Unidades Monitoreadas</h2>
-            <div class="flex flex-col gap-2">
-              @for (bus of buses(); track bus.id) {
-                <button (click)="selectBus(bus)" 
-                        class="p-3 rounded-lg text-left transition-all duration-200"
-                        [class.bg-gradient-to-r]="bus === selectedBus()"
-                        [class.from-cyan-500]="bus === selectedBus()"
-                        [class.to-teal-400]="bus === selectedBus()"
-                        [class.text-white]="bus === selectedBus()"
-                        [class.font-bold]="bus === selectedBus()"
-                        [class.shadow-lg]="bus === selectedBus()"
-                        [class.shadow-cyan-500/20]="bus === selectedBus()"
-                        [class.hover:bg-slate-200]="bus !== selectedBus()"
-                        [class.dark:hover:bg-slate-800]="bus !== selectedBus()">
-                  <div class="flex justify-between items-center">
-                    <span [class.text-slate-900]="bus !== selectedBus()" [class.dark:text-slate-200]="bus !== selectedBus()">{{ bus.name }}</span>
-                    <span class="text-xs font-medium px-2 py-1 rounded-full"
-                          [class.bg-green-500/20]="bus.status() === 'detenido'"
-                          [class.text-green-700]="bus.status() === 'detenido'" [class.dark:text-green-300]="bus.status() === 'detenido'"
-                          [class.bg-yellow-500/20]="bus.status() === 'llegando'"
-                          [class.text-yellow-700]="bus.status() === 'llegando'" [class.dark:text-yellow-300]="bus.status() === 'llegando'"
-                          [class.bg-cyan-500/20]="bus.status() === 'en-ruta'"
-                          [class.text-cyan-700]="bus.status() === 'en-ruta'" [class.dark:text-cyan-300]="bus.status() === 'en-ruta'"
-                          [class.bg-blue-500/20]="bus.status() === 'saliendo'"
-                          [class.text-blue-700]="bus.status() === 'saliendo'" [class.dark:text-blue-300]="bus.status() === 'saliendo'">
-                      {{ getStatusMessage(bus.status()) }}
-                    </span>
+            <div class="flex flex-col gap-4">
+              @for (route of routes(); track route.originalName) {
+                <div class="route-group">
+                  <!-- Route Header -->
+                  <div class="px-2 pb-2">
+                    <div class="flex justify-between items-center">
+                      <h3 class="font-bold text-slate-800 dark:text-slate-100">{{ route.name }}</h3>
+                      @if(routeRiskScores()[route.originalName]; as risk) {
+                        <span class="text-xs font-bold px-2 py-1 rounded-full"
+                          [class.bg-green-800]="risk === 'Bajo'" [class.text-green-200]="risk === 'Bajo'"
+                          [class.bg-yellow-800]="risk === 'Medio'" [class.text-yellow-200]="risk === 'Medio'"
+                          [class.bg-red-800]="risk === 'Alto'" [class.text-red-200]="risk === 'Alto'">
+                          Riesgo {{ risk }}
+                        </span>
+                      } @else {
+                        <span class="text-xs italic text-slate-400 dark:text-slate-500">Calculando riesgo...</span>
+                      }
+                    </div>
                   </div>
-                </button>
+                  <!-- Buses in Route -->
+                  <div class="flex flex-col gap-2">
+                    @for (bus of route.buses; track bus.id) {
+                      <button (click)="selectBus(bus)" 
+                              class="p-3 rounded-lg text-left transition-all duration-200"
+                              [class.bg-gradient-to-r]="bus === selectedBus()"
+                              [class.from-cyan-500]="bus === selectedBus()"
+                              [class.to-teal-400]="bus === selectedBus()"
+                              [class.font-bold]="bus === selectedBus()"
+                              [class.shadow-lg]="bus === selectedBus()"
+                              [class.shadow-cyan-500/20]="bus === selectedBus()"
+                              [class.hover:bg-slate-200]="bus !== selectedBus()"
+                              [class.dark:hover:bg-slate-800]="bus !== selectedBus()">
+                        <div class="flex justify-between items-center">
+                          <span 
+                            [class.text-white]="bus === selectedBus()"
+                            [class.text-slate-900]="bus !== selectedBus()" [class.dark:text-slate-200]="bus !== selectedBus()">{{ bus.name }}</span>
+                          <span class="text-xs font-medium px-2 py-1 rounded-full"
+                                [class.bg-green-500/20]="bus.status() === 'detenido'"
+                                [class.text-green-700]="bus.status() === 'detenido'" [class.dark:text-green-300]="bus.status() === 'detenido'"
+                                [class.bg-yellow-500/20]="bus.status() === 'llegando'"
+                                [class.text-yellow-700]="bus.status() === 'llegando'" [class.dark:text-yellow-300]="bus.status() === 'llegando'"
+                                [class.bg-cyan-500/20]="bus.status() === 'en-ruta'"
+                                [class.text-cyan-700]="bus.status() === 'en-ruta'" [class.dark:text-cyan-300]="bus.status() === 'en-ruta'"
+                                [class.bg-blue-500/20]="bus.status() === 'saliendo'"
+                                [class.text-blue-700]="bus.status() === 'saliendo'" [class.dark:text-blue-300]="bus.status() === 'saliendo'">
+                            {{ getStatusMessage(bus.status()) }}
+                          </span>
+                        </div>
+                      </button>
+                    }
+                  </div>
+                </div>
               }
             </div>
           </div>
+
 
           <!-- Feedback Form Card -->
           <div class="bg-slate-100/50 dark:bg-slate-900/70 p-5 rounded-xl border border-slate-200 dark:border-slate-800">

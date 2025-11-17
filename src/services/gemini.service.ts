@@ -6,7 +6,7 @@ import { Bus } from '../components/dashboard/dashboard.component';
 import { Stop } from '../models/stop.model';
 import { AssistantMessage, AssistantMessageType } from '../models/ai-assistant.model';
 import { SimulationScenario, UserAction } from '../models/simulation.model';
-import { IncidentPriority } from '../models/incident.model';
+import { Incident, IncidentPriority } from '../models/incident.model';
 
 @Injectable({
   providedIn: 'root',
@@ -16,15 +16,11 @@ export class GeminiService {
   private chat: Chat | null = null;
 
   constructor() {
-    // Safely access the API key using optional chaining on `globalThis`.
-    // This is the most robust way to avoid a `ReferenceError` in browser environments
-    // where `process` is not defined.
-    const apiKey = (globalThis as any)?.process?.env?.API_KEY || '';
+    const apiKey = (process.env as any).API_KEY || '';
 
     if (!apiKey) {
       console.error(
-        'Could not read Gemini API key from environment. ' +
-        'This is expected if the app is running in a browser and the API key was not injected. ' +
+        'API_KEY environment variable not set. ' +
         'The app will continue to run, but Gemini features will not work.'
       );
     }
@@ -443,6 +439,97 @@ export class GeminiService {
     } catch (error) {
         console.error("Error calling Gemini API for performance analysis:", error);
         throw new Error("Failed to analyze simulation performance due to an API error.");
+    }
+  }
+
+  async analyzeRouteRisk(
+    buses: Bus[],
+    stops: Stop[],
+    incidents: Incident[]
+  ): Promise<Record<string, 'Bajo' | 'Medio' | 'Alto'>> {
+    const schema = {
+      type: Type.OBJECT,
+      properties: {
+        routeRisks: {
+          type: Type.ARRAY,
+          description: "Una lista de los niveles de riesgo para cada ruta.",
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              routeName: {
+                type: Type.STRING,
+                description: "El nombre de la ruta, por ejemplo, 'Ruta Central'."
+              },
+              riskLevel: {
+                type: Type.STRING,
+                description: 'El nivel de riesgo. Debe ser "Bajo", "Medio" o "Alto".'
+              }
+            },
+            required: ['routeName', 'riskLevel']
+          }
+        }
+      },
+      required: ['routeRisks']
+    };
+
+    const systemInstruction = `Eres un analista de riesgos para una red de transporte público. Tu tarea es analizar el estado actual de la flota y asignar un nivel de riesgo a cada ruta.
+
+    Considera los siguientes factores:
+    - **Alertas de proximidad:** Múltiples o recientes alertas de 'peligro' en una ruta aumentan el riesgo.
+    - **Incidentes abiertos:** Los incidentes activos en una ruta aumentan significativamente el riesgo.
+    - **Estado de las paradas:** Las paradas 'No Aptas' en una ruta contribuyen al riesgo.
+
+    Devuelve un objeto JSON con una única clave "routeRisks" que contiene un array de objetos. Cada objeto debe tener "routeName" y "riskLevel" ('Bajo', 'Medio', o 'Alto'). Analiza todas las rutas presentes en los datos de los autobuses.`;
+
+    const fleetState = buses.map(bus => ({
+      route: bus.route,
+      status: bus.status(),
+      recentDangerEvents: bus.eventLog().filter(e => e.level === 'danger').length,
+    }));
+    const problemStops = stops.filter(s => s.status !== 'Apto').map(s => ({ route: s.route, name: s.name }));
+    const openIncidentsByRoute = incidents
+      .filter(i => i.status !== 'Resuelto')
+      .map(incident => {
+        const bus = buses.find(b => b.id === incident.bus.id);
+        return {
+          route: bus ? bus.route : 'Unknown',
+          priority: incident.priority
+        };
+      })
+      .filter(i => i.route !== 'Unknown');
+
+    const prompt = `Analiza los siguientes datos y asigna un nivel de riesgo a cada ruta.
+    - Flota: ${JSON.stringify(fleetState)}
+    - Paradas con problemas: ${JSON.stringify(problemStops)}
+    - Incidentes abiertos: ${JSON.stringify(openIncidentsByRoute)}`;
+
+    try {
+      const response = await this.ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: { parts: [{ text: prompt }] },
+        config: {
+          systemInstruction,
+          responseMimeType: 'application/json',
+          responseSchema: schema,
+        },
+      });
+      const jsonText = response.text.trim();
+      const result = JSON.parse(jsonText);
+
+      if (!result.routeRisks || !Array.isArray(result.routeRisks)) {
+          throw new Error('Invalid route risk analysis result structure from API');
+      }
+
+      const riskScores: Record<string, 'Bajo' | 'Medio' | 'Alto'> = {};
+      for (const item of result.routeRisks) {
+          if (item.routeName && item.riskLevel) {
+              riskScores[item.routeName] = item.riskLevel;
+          }
+      }
+      return riskScores;
+    } catch (error) {
+      console.error('Error calling Gemini API for route risk analysis:', error);
+      throw new Error('Failed to analyze route risk due to an API error.');
     }
   }
 }
