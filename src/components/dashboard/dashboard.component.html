@@ -106,7 +106,7 @@
                             <select id="feedbackType" 
                                     [value]="feedbackType()"
                                     (change)="handleFeedbackTypeChange($event)"
-                                    class="w-full bg-white dark:bg-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-md p-2 mt-1 text-sm focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none">
+                                    class="w-full bg-white dark:bg-slate-800 dark:text-white dark:placeholder-slate-400 border border-slate-300 dark:border-slate-700 rounded-md p-2 mt-1 text-sm focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none">
                                 <option value="sugerencia">Sugerencia</option>
                                 <option value="felicitacion">Felicitación</option>
                                 <option value="denuncia">Denuncia (Seguridad/Acceso)</option>
@@ -118,7 +118,7 @@
                                       [value]="feedbackMessage()"
                                       (input)="handleFeedbackInput($event)"
                                       placeholder="Ej: El bus no se acercó lo suficiente..."
-                                      class="w-full bg-white dark:bg-slate-800 dark:text-slate-200 dark:placeholder-slate-400 border border-slate-300 dark:border-slate-700 rounded-md p-2 mt-1 text-sm focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none resize-none"></textarea>
+                                      class="w-full bg-white dark:bg-slate-800 dark:text-white dark:placeholder-slate-400 border border-slate-300 dark:border-slate-700 rounded-md p-2 mt-1 text-sm focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none resize-none"></textarea>
                         </div>
 
                         <!-- Image Upload -->
@@ -304,7 +304,12 @@
           </div>
 
           <!-- AI Dispatch Assistant -->
-          <app-ai-assistant [buses]="buses()" [stops]="stops()" (createIncident)="openIncidentFormFromAI($event)"></app-ai-assistant>
+          <app-ai-assistant 
+            [buses]="buses()" 
+            [stops]="stops()" 
+            (createIncident)="openIncidentFormFromAI($event)"
+            (createIncidentFromDraft)="openIncidentFormFromDraft($event)"
+          ></app-ai-assistant>
 
           <!-- Accessibility Analysis Card -->
           @if (settingsService.settings().accessibilityAnalysisEnabled) {

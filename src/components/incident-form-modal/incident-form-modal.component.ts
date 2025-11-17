@@ -1,4 +1,4 @@
-import { Component, ChangeDetectionStrategy, input, output, signal } from '@angular/core';
+import { Component, ChangeDetectionStrategy, input, output, signal, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Bus } from '../dashboard/dashboard.component';
 import { Incident, IncidentPriority } from '../../models/incident.model';
@@ -11,8 +11,8 @@ import { Incident, IncidentPriority } from '../../models/incident.model';
   styleUrls: ['./incident-form-modal.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class IncidentFormModalComponent {
-  data = input.required<{ eventMessage: string; bus: Bus }>();
+export class IncidentFormModalComponent implements OnInit {
+  data = input.required<{ eventMessage: string; bus: Bus, title?: string, priority?: IncidentPriority }>();
   
   close = output<void>();
   save = output<Omit<Incident, 'id' | 'createdAt' | 'status'>>();
@@ -20,6 +20,15 @@ export class IncidentFormModalComponent {
   title = signal('');
   priority = signal<IncidentPriority>('Media');
   notes = signal('');
+
+  ngOnInit(): void {
+    if (this.data().title) {
+      this.title.set(this.data().title!);
+    }
+    if (this.data().priority) {
+      this.priority.set(this.data().priority!);
+    }
+  }
 
   onSave(): void {
     if (!this.title().trim()) {

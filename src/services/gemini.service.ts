@@ -6,6 +6,7 @@ import { Bus } from '../components/dashboard/dashboard.component';
 import { Stop } from '../models/stop.model';
 import { AssistantMessage, AssistantMessageType } from '../models/ai-assistant.model';
 import { SimulationScenario, UserAction } from '../models/simulation.model';
+import { IncidentPriority } from '../models/incident.model';
 
 @Injectable({
   providedIn: 'root',
@@ -180,12 +181,13 @@ export class GeminiService {
     buses: Bus[],
     stops: Stop[],
     previousMessages: AssistantMessage[]
-  ): Promise<{ message: string; type: AssistantMessageType; involvedBusId?: number; } | null> {
+  ): Promise<AssistantMessage | null> {
 
     // Sanitize data for the prompt to keep it concise
     const fleetState = buses.map(bus => ({
       id: bus.id,
       name: bus.name,
+      route: bus.route,
       status: bus.status(),
       curbDistanceCm: bus.curbDistanceCm(),
       // only include recent events to keep prompt small
@@ -218,11 +220,19 @@ export class GeminiService {
             },
             type: {
               type: Type.STRING,
-              description: 'El tipo de mensaje. Debe ser "info", "alert", o "success".',
+              description: 'El tipo de mensaje. Debe ser "info", "alert", "success", "predictive", o "incident_draft".',
             },
             involvedBusId: {
               type: Type.INTEGER,
               description: 'Opcional. El ID del autobús principal involucrado en la información.',
+            },
+            incidentDraft: {
+                type: Type.OBJECT,
+                description: "Obligatorio si el tipo es 'incident_draft'. Contiene los detalles pre-rellenados para el incidente.",
+                properties: {
+                    title: { type: Type.STRING, description: 'Un título claro y conciso para el incidente. Ej: "Múltiples alertas de peligro para Bus #72A"' },
+                    priority: { type: Type.STRING, description: 'La prioridad del incidente. Debe ser "Baja", "Media", o "Alta".' }
+                }
             }
           }
         }
@@ -230,19 +240,17 @@ export class GeminiService {
       required: ['shouldRespond']
     };
 
-    const systemInstruction = `Eres un experto asistente de despacho de IA para un sistema de transporte público. Tu rol es monitorear datos de la flota en tiempo real y proporcionar UNA SOLA visión concisa y accionable para el despachador humano. Analiza los datos JSON proporcionados, que incluyen el estado actual de todos los buses, sus registros de eventos recientes y la condición de las paradas de autobús problemáticas.
+    const systemInstruction = `Eres un experto asistente de despacho de IA para un sistema de transporte público. Tu rol es monitorear datos de la flota en tiempo real y proporcionar UNA SOLA visión concisa y accionable para el despachador humano. Analiza los datos JSON proporcionados.
 
-    Tu tarea es identificar la situación MÁS CRÍTICA o interesante en este momento. Esto podría ser:
-    - Un autobús con repetidos eventos de 'peligro'.
-    - Un autobús que se aproxima a una parada 'No Apta' en su ruta.
-    - Un conductor con un historial limpio en esta sesión.
-    - Una ruta que está experimentando múltiples problemas.
+    Tu tarea principal es identificar la situación MÁS CRÍTICA que justifique la creación de un incidente.
+    - **PRIORIDAD ALTA: Borrador de Incidente (tipo: 'incident_draft')**: Si un autobús tiene dos o más eventos de 'peligro' en su registro de eventos reciente, es CRÍTICO. Debes proponer un borrador de incidente. Tu mensaje debe explicar por qué. Debes proporcionar un 'title' y una 'priority' ('Alta' o 'Media') para el borrador.
+    - **PRIORIDAD MEDIA: Riesgo Predictivo (tipo: 'predictive')**: Un autobús ('en-ruta' o 'llegando') que se aproxima a una parada 'No Apta' en su misma ruta.
+    - **PRIORIDAD BAJA: Otras Observaciones (tipos: 'info', 'success', 'alert')**: Un conductor con un historial limpio, una ruta con múltiples problemas, etc.
 
     REGLAS IMPORTANTES:
     1. NO SEAS REPETITIVO. Revisa la lista de 'previousMessageTexts' y NO generes una idea que ya se haya comunicado.
     2. SÉ RELEVANTE. Si no hay nada nuevo o importante que decir, establece 'shouldRespond' en 'false'. No inventes problemas.
-    3. SÉ CONCISO. El mensaje debe ser breve y al grano.
-    4. Responde ÚNICAMENTE con un objeto JSON en el esquema solicitado.`;
+    3. Responde ÚNICAMENTE con un objeto JSON en el esquema solicitado.`;
 
     const prompt = `Aquí están los datos actuales:
     - Estado de la flota: ${JSON.stringify(fleetState)}
@@ -268,7 +276,14 @@ export class GeminiService {
       if (result.shouldRespond && result.insight) {
         // Basic validation
         if (result.insight.message && result.insight.type) {
-            return result.insight;
+             const insightResult: AssistantMessage = {
+                timestamp: new Date(), // This will be overwritten, but good for typing
+                type: result.insight.type,
+                message: result.insight.message,
+                involvedBusId: result.insight.involvedBusId,
+                incidentDraft: result.insight.incidentDraft,
+            };
+            return insightResult;
         }
       }
       return null; // No new insight found

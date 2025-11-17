@@ -17,6 +17,7 @@ export class AiAssistantComponent {
   buses = input.required<Bus[]>();
   stops = input.required<Stop[]>();
   createIncident = output<{ message: AssistantMessage, bus: Bus }>();
+  createIncidentFromDraft = output<{ draft: AssistantMessage, bus: Bus }>();
 
   private geminiService = inject(GeminiService);
   private analysisTimer: any;
@@ -83,6 +84,14 @@ export class AiAssistantComponent {
     const bus = this.buses().find(b => b.id === message.involvedBusId);
     if (bus) {
       this.createIncident.emit({ message, bus });
+    }
+  }
+
+  escalateDraftToIncident(message: AssistantMessage): void {
+    if (!message.involvedBusId) return;
+    const bus = this.buses().find(b => b.id === message.involvedBusId);
+    if (bus) {
+      this.createIncidentFromDraft.emit({ draft: message, bus });
     }
   }
 }

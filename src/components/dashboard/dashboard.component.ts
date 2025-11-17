@@ -14,7 +14,7 @@ import { ReportsModalComponent } from '../reports-modal/reports-modal.component'
 import { Stop } from '../../models/stop.model';
 import { AiAssistantComponent } from '../ai-assistant/ai-assistant.component';
 import { ChatAssistantComponent } from '../chat-assistant/chat-assistant.component';
-import { Incident, IncidentStatus } from '../../models/incident.model';
+import { Incident, IncidentPriority, IncidentStatus } from '../../models/incident.model';
 import { IncidentFormModalComponent } from '../incident-form-modal/incident-form-modal.component';
 import { IncidentTrackerModalComponent } from '../incident-tracker-modal/incident-tracker-modal.component';
 import { AssistantMessage } from '../../models/ai-assistant.model';
@@ -73,7 +73,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   isHelpModalOpen = signal(false);
   isIncidentTrackerOpen = signal(false);
   isIncidentFormOpen = signal(false);
-  incidentToCreate = signal<{ eventMessage: string; bus: Bus } | null>(null);
+  incidentToCreate = signal<{ eventMessage: string; bus: Bus; title?: string; priority?: IncidentPriority; } | null>(null);
   
   private alertAudio: HTMLAudioElement;
   private isAudioUnlocked = signal(false);
@@ -421,6 +421,20 @@ export class DashboardComponent implements OnInit, OnDestroy {
      this.captureUserAction({
       type: 'CREATE_INCIDENT_ATTEMPT',
       details: `User opened incident form from AI alert: "${event.message.message}" on bus ${event.bus.name}.`
+    });
+  }
+
+  openIncidentFormFromDraft(event: { draft: AssistantMessage, bus: Bus }): void {
+    this.incidentToCreate.set({ 
+      eventMessage: event.draft.message, 
+      bus: event.bus,
+      title: event.draft.incidentDraft?.title,
+      priority: event.draft.incidentDraft?.priority,
+    });
+    this.isIncidentFormOpen.set(true);
+    this.captureUserAction({
+      type: 'CREATE_INCIDENT_ATTEMPT',
+      details: `User opened incident form from AI draft: "${event.draft.message}" on bus ${event.bus.name}.`
     });
   }
 
