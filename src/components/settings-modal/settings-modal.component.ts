@@ -44,7 +44,7 @@ export class SettingsModalComponent implements OnInit {
   }
 
   onRestoreDefaults(): void {
-    const defaults = {
+    const defaults: AppSettings = {
         theme: 'dark',
         cautionThreshold: 15,
         dangerThreshold: 30,
