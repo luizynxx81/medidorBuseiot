@@ -23,7 +23,7 @@
                [value]="title()"
                (input)="title.set($any($event.target).value)"
                placeholder="Ej: Proximidad peligrosa en Estación Central"
-               class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md p-2 text-sm focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none">
+               class="w-full bg-white dark:bg-slate-800 dark:text-slate-200 dark:placeholder-slate-400 border border-slate-300 dark:border-slate-700 rounded-md p-2 text-sm focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none">
       </div>
       
       <div>
@@ -31,7 +31,7 @@
         <select id="incidentPriority" 
                 [value]="priority()"
                 (change)="priority.set($any($event.target).value)"
-                class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md p-2 text-sm focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none">
+                class="w-full bg-white dark:bg-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-md p-2 text-sm focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none">
             <option value="Baja">Baja</option>
             <option value="Media">Media</option>
             <option value="Alta">Alta</option>
@@ -44,7 +44,7 @@
                   [value]="notes()"
                   (input)="notes.set($any($event.target).value)"
                   placeholder="Añadir detalles sobre la acción tomada o el contexto..."
-                  class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md p-2 text-sm focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none resize-none"></textarea>
+                  class="w-full bg-white dark:bg-slate-800 dark:text-slate-200 dark:placeholder-slate-400 border border-slate-300 dark:border-slate-700 rounded-md p-2 text-sm focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none resize-none"></textarea>
       </div>
     </div>
 
