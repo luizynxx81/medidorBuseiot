@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { GoogleGenAI, Type } from '@google/genai';
+import { GoogleGenAI, Type, Chat } from '@google/genai';
 import { FeedbackAnalysis } from '../models/feedback-analysis.model';
 import { AccessibilityAnalysis } from '../models/accessibility-analysis.model';
 import { Bus } from '../components/dashboard/dashboard.component';
@@ -11,6 +11,7 @@ import { AssistantMessage, AssistantMessageType } from '../models/ai-assistant.m
 })
 export class GeminiService {
   private ai: GoogleGenAI;
+  private chat: Chat | null = null;
 
   constructor() {
     // Safely access the API key using optional chaining on `globalThis`.
@@ -296,6 +297,52 @@ export class GeminiService {
     } catch (error) {
         console.error("Error calling Gemini API for image generation:", error);
         throw new Error("Failed to generate stop improvement image due to an API error.");
+    }
+  }
+
+  async startChatAndQueryData(
+    query: string,
+    buses: Bus[],
+    stops: Stop[]
+  ): Promise<string> {
+    if (!this.chat) {
+      this.chat = this.ai.chats.create({
+        model: 'gemini-2.5-flash',
+        config: {
+          systemInstruction:
+            "Eres un útil analista de datos para el sistema de monitoreo de autobuses StreetSafe. El usuario te hará preguntas sobre el estado de la flota. Responde a sus preguntas basándote ÚNICAMENTE en los datos JSON proporcionados en el mensaje. Mantén tus respuestas concisas y en español. Si la pregunta no se puede responder con los datos proporcionados, indica que no tienes esa información.",
+        },
+      });
+    }
+
+    const fleetState = buses.map((bus) => ({
+      id: bus.id,
+      name: bus.name,
+      status: bus.status(),
+      curbDistanceCm: bus.curbDistanceCm(),
+      eventLog: bus.eventLog(),
+    }));
+
+    const stopState = stops.map((s) => ({
+      name: s.name,
+      status: s.status,
+      issues: s.issues.map((i) => i.description),
+    }));
+
+    const prompt = `
+      Pregunta del usuario: "${query}"
+
+      Datos en tiempo real:
+      ${JSON.stringify({ buses: fleetState, paradas: stopState })}
+    `;
+
+    try {
+      const response = await this.chat.sendMessage({ message: prompt });
+      return response.text;
+    } catch (error) {
+      console.error('Error calling Gemini API for chat:', error);
+      this.chat = null; // Reset chat on error
+      throw new Error('Failed to get chat response due to an API error.');
     }
   }
 }

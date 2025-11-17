@@ -12,6 +12,7 @@ import { alertSound } from '../../assets/audio-alert';
 import { ReportsModalComponent } from '../reports-modal/reports-modal.component';
 import { Stop } from '../../models/stop.model';
 import { AiAssistantComponent } from '../ai-assistant/ai-assistant.component';
+import { ChatAssistantComponent } from '../chat-assistant/chat-assistant.component';
 
 // --- DATA STRUCTURES ---
 type BusStatus = 'en-ruta' | 'llegando' | 'detenido' | 'saliendo';
@@ -36,7 +37,7 @@ export interface Bus {
 
 @Component({
   selector: 'app-dashboard',
-  imports: [CommonModule, DatePipe, FeedbackAnalysisComponent, AccessibilityAnalyzerComponent, SettingsModalComponent, ReportsModalComponent, AiAssistantComponent],
+  imports: [CommonModule, DatePipe, FeedbackAnalysisComponent, AccessibilityAnalyzerComponent, SettingsModalComponent, ReportsModalComponent, AiAssistantComponent, ChatAssistantComponent],
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
