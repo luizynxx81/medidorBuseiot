@@ -1,0 +1,278 @@
+<div class="min-h-screen w-full bg-gray-950 text-slate-200 font-sans">
+  <!-- App Header -->
+  <header class="py-8 text-center">
+    <h1 class="text-6xl font-extrabold text-shadow-cyan uppercase tracking-widest">StreetSafe</h1>
+  </header>
+
+  <main class="w-full flex items-start justify-center px-4 pb-8">
+    <div class="w-full max-w-7xl bg-gradient-to-br from-slate-900/80 to-slate-950/70 backdrop-blur-xl border border-cyan-900/50 rounded-2xl shadow-2xl shadow-cyan-500/10 p-6 sm:p-8 card-container">
+
+      <!-- Header -->
+      <header class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 border-b border-slate-700 pb-4">
+        <div>
+          <h1 class="text-2xl font-bold text-white">
+            Monitor de Proximidad
+          </h1>
+          <p class="text-sm text-slate-400">Midiendo la distancia lateral a la banqueta para un abordaje seguro.</p>
+        </div>
+        <div class="flex items-center gap-3 mt-3 sm:mt-0">
+          <span class="relative flex h-3 w-3">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+          </span>
+          <span class="font-medium text-green-300">EN VIVO</span>
+        </div>
+      </header>
+
+      <!-- Main Content Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Left Column: Bus List & Feedback -->
+        <aside class="lg:col-span-1 flex flex-col gap-6">
+          <!-- Bus List Card -->
+          <div class="bg-slate-900/70 p-4 rounded-xl border border-slate-800">
+            <h2 class="text-lg font-semibold text-white mb-4 px-2">Unidades Monitoreadas</h2>
+            <div class="flex flex-col gap-2">
+              @for (bus of buses(); track bus.id) {
+                <button (click)="selectBus(bus)" 
+                        class="p-3 rounded-lg text-left transition-all duration-200"
+                        [class.bg-gradient-to-r]="bus === selectedBus()"
+                        [class.from-cyan-500]="bus === selectedBus()"
+                        [class.to-teal-400]="bus === selectedBus()"
+                        [class.text-white]="bus === selectedBus()"
+                        [class.font-bold]="bus === selectedBus()"
+                        [class.shadow-lg]="bus === selectedBus()"
+                        [class.shadow-cyan-500/20]="bus === selectedBus()"
+                        [class.hover:bg-slate-800]="bus !== selectedBus()">
+                  <div class="flex justify-between items-center">
+                    <span [class.text-slate-900]="bus === selectedBus()">{{ bus.name }}</span>
+                    <span class="text-xs font-medium px-2 py-1 rounded-full"
+                          [class.bg-green-500/20]="bus.status() === 'detenido'"
+                          [class.text-green-300]="bus.status() === 'detenido'"
+                          [class.bg-yellow-500/20]="bus.status() === 'llegando'"
+                          [class.text-yellow-300]="bus.status() === 'llegando'"
+                          [class.bg-cyan-500/20]="bus.status() === 'en-ruta'"
+                          [class.text-cyan-300]="bus.status() === 'en-ruta'"
+                          [class.bg-blue-500/20]="bus.status() === 'saliendo'"
+                          [class.text-blue-300]="bus.status() === 'saliendo'">
+                      {{ getStatusMessage(bus.status()) }}
+                    </span>
+                  </div>
+                </button>
+              }
+            </div>
+          </div>
+
+          <!-- Feedback Form Card -->
+          <div class="bg-slate-900/70 p-5 rounded-xl border border-slate-800">
+              <h3 class="text-md font-semibold text-white mb-3">Buzón de Comentarios</h3>
+              
+              @if (analysisResult()) {
+                <app-feedback-analysis [analysis]="analysisResult()!" (close)="clearAnalysis()" />
+              } @else {
+                <form (submit)="$event.preventDefault(); submitFeedback()">
+                    <div class="grid grid-cols-1 gap-4">
+                        <div>
+                            <label for="feedbackType" class="text-xs text-slate-400">Tipo de Comentario</label>
+                            <select id="feedbackType" 
+                                    [value]="feedbackType()"
+                                    (change)="handleFeedbackTypeChange($event)"
+                                    class="w-full bg-slate-800 border border-slate-700 rounded-md p-2 mt-1 text-sm focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none">
+                                <option value="sugerencia">Sugerencia</option>
+                                <option value="felicitacion">Felicitación</option>
+                                <option value="denuncia">Denuncia (Seguridad/Acceso)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="feedbackMessage" class="text-xs text-slate-400">Mensaje (opcional si adjunta imagen)</label>
+                            <textarea id="feedbackMessage" rows="3"
+                                      [value]="feedbackMessage()"
+                                      (input)="handleFeedbackInput($event)"
+                                      placeholder="Ej: El bus no se acercó lo suficiente..."
+                                      class="w-full bg-slate-800 border border-slate-700 rounded-md p-2 mt-1 text-sm focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none resize-none"></textarea>
+                        </div>
+
+                        <!-- Image Upload -->
+                        <div>
+                            @if (feedbackImagePreviewUrl()) {
+                              <div class="relative group">
+                                <img [src]="feedbackImagePreviewUrl()" alt="Vista previa de la imagen" class="rounded-lg w-full max-h-48 object-cover">
+                                <button type="button" (click)="removeImage()" class="absolute top-2 right-2 bg-black/60 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity" aria-label="Remove image">
+                                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                                </button>
+                              </div>
+                            } @else {
+                              <label for="feedbackImage" class="w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg p-2 text-sm font-semibold cursor-pointer transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd" /></svg>
+                                <span>Adjuntar Imagen (Opcional)</span>
+                              </label>
+                              <input type="file" id="feedbackImage" class="hidden" (change)="handleImageSelection($event)" accept="image/png, image/jpeg, image/webp">
+                            }
+                        </div>
+
+                        <button type="submit" [disabled]="!isFeedbackFormValid() || isSubmittingFeedback()"
+                                class="w-full bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2">
+                            @if(isSubmittingFeedback()) {
+                                <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span>Analizando...</span>
+                            } @else {
+                                <span>Enviar Comentario</span>
+                            }
+                        </button>
+                    </div>
+                </form>
+              }
+
+              @if (analysisError()) {
+                <div class="bg-red-500/20 text-red-300 text-sm font-medium p-3 rounded-lg mt-4 text-center">
+                  {{ analysisError() }}
+                </div>
+              }
+          </div>
+        </aside>
+
+        <!-- Right Column: Main Visualization -->
+        <div class="lg:col-span-2 bg-slate-900/70 p-6 rounded-xl border border-slate-800 min-h-[520px] flex flex-col">
+          <h2 class="text-lg font-semibold text-white">
+            Análisis de Proximidad: 
+            <span class="font-bold" [class]="safetyVisuals().text">{{ selectedBus()?.name }}</span>
+          </h2>
+          
+          <div class="flex-grow flex flex-col items-center justify-center text-center my-4">
+            
+            <!-- Status Lights -->
+            <div class="flex justify-center items-end gap-6 my-6">
+              <div class="flex flex-col items-center gap-2">
+                  <div class="w-12 h-12 rounded-full border-2 transition-all"
+                       [class.border-green-400]="safetyStatus() === 'safe'"
+                       [class.bg-green-400]="safetyStatus() === 'safe'"
+                       [class.light-glow-green]="safetyStatus() === 'safe'"
+                       [class.border-slate-700]="safetyStatus() !== 'safe'"
+                       [class.bg-slate-800]="safetyStatus() !== 'safe'">
+                  </div>
+                  <span class="text-xs font-bold"
+                        [class.text-green-300]="safetyStatus() === 'safe'"
+                        [class.text-slate-500]="safetyStatus() !== 'safe'">
+                        SEGURO (&le;15 cm)
+                  </span>
+              </div>
+              <div class="flex flex-col items-center gap-2">
+                  <div class="w-12 h-12 rounded-full border-2 transition-all"
+                       [class.border-yellow-400]="safetyStatus() === 'caution'"
+                       [class.bg-yellow-400]="safetyStatus() === 'caution'"
+                       [class.light-glow-yellow]="safetyStatus() === 'caution'"
+                       [class.border-slate-700]="safetyStatus() !== 'caution'"
+                       [class.bg-slate-800]="safetyStatus() !== 'caution'">
+                  </div>
+                  <span class="text-xs font-bold"
+                        [class.text-yellow-300]="safetyStatus() === 'caution'"
+                        [class.text-slate-500]="safetyStatus() !== 'caution'">
+                        PRECAUCIÓN (16-30 cm)
+                  </span>
+              </div>
+              <div class="flex flex-col items-center gap-2">
+                  <div class="w-12 h-12 rounded-full border-2 transition-all"
+                       [class.border-red-500]="safetyStatus() === 'danger'"
+                       [class.bg-red-500]="safetyStatus() === 'danger'"
+                       [class.light-glow-red]="safetyStatus() === 'danger'"
+                       [class.border-slate-700]="safetyStatus() !== 'danger'"
+                       [class.bg-slate-800]="safetyStatus() !== 'danger'">
+                  </div>
+                  <span class="text-xs font-bold"
+                        [class.text-red-400]="safetyStatus() === 'danger'"
+                        [class.text-slate-500]="safetyStatus() !== 'danger'">
+                        PELIGRO (>30 cm)
+                  </span>
+              </div>
+            </div>
+
+            <!-- Main Metric Display -->
+            <p class="text-base font-medium text-slate-400 mt-8">Distancia a la Banqueta</p>
+            @if (selectedBus()?.status() === 'detenido') {
+              <div class="my-2">
+                <span class="text-8xl font-black tracking-tighter" [class]="[safetyVisuals().text, safetyVisuals().glow]">
+                  {{ selectedBus()?.curbDistanceCm().toFixed(0) }}
+                </span>
+                <span class="text-4xl font-bold text-slate-500 ml-2">cm</span>
+              </div>
+            } @else {
+              <div class="my-2 p-4 bg-slate-800/50 rounded-lg">
+                <span class="text-2xl font-bold text-slate-500 tracking-tighter">
+                   @switch (selectedBus()?.status()) {
+                      @case ('llegando') { 'Vehículo aproximándose...' }
+                      @case ('en-ruta') { 'Vehículo en ruta.' }
+                      @case ('saliendo') { 'Vehículo saliendo de la parada...' }
+                      @default { 'Esperando datos...' }
+                    }
+                </span>
+              </div>
+            }
+          </div>
+          
+          <!-- Visual Diagram -->
+          <div class="w-full max-w-lg mx-auto mt-auto h-64 scene">
+              <div class="road"></div>
+              <div class="curb"></div>
+
+              @if (selectedBus()?.status() === 'detenido' && selectedBus()) {
+                @let bus = selectedBus()!;
+                @let curbDist = bus.curbDistanceCm();
+                <!-- Bus visualization -->
+                <div class="bus-container transition-all duration-500 ease-out"
+                     [style.transform]="'translateX(' + (curbDist * 2.5) + 'px)'">
+                    <div [class]="safetyVisuals().text">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 160" class="bus-svg">
+                            <g>
+                                <!-- Bus body -->
+                                <path d="M10 8 C6.69 8 4 10.69 4 14 L4 146 C4 149.31 6.69 152 10 152 L70 152 C73.31 152 76 149.31 76 146 L76 14 C76 10.69 73.31 8 70 8 L10 8 Z" fill="currentColor"/>
+                                
+                                <!-- Roof / Window area -->
+                                <path d="M12 12 L68 12 L68 140 L12 140 L12 12 Z" fill="#1E293B" opacity="0.8"/>
+                                
+                                <!-- Windshield -->
+                                <path d="M16 14 C14.9 14 14 14.9 14 16 L14 34 L66 34 L66 16 C66 14.9 65.1 14 64 14 L16 14 Z" fill="#334155" opacity="0.8"/>
+                                
+                                <!-- Windows -->
+                                <rect x="14" y="40" width="52" height="85" fill="#334155" opacity="0.8" rx="2"/>
+                                
+                                <!-- Headlights -->
+                                <rect x="24" y="4" width="8" height="6" rx="2" fill="#FFFFE0" opacity="0.9"/>
+                                <rect x="48" y="4" width="8" height="6" rx="2" fill="#FFFFE0" opacity="0.9"/>
+                                
+                                <!-- Taillights -->
+                                <rect x="22" y="150" width="12" height="5" rx="2" fill="#FF4444"/>
+                                <rect x="46" y="150" width="12" height="5" rx="2" fill="#FF4444"/>
+                                
+                                <!-- AC Unit on top -->
+                                <rect x="25" y="50" width="30" height="40" rx="4" fill="#475569"/>
+                                <rect x="28" y="53" width="24" height="34" rx="2" fill="#334155"/>
+                            </g>
+                        </svg>
+                    </div>
+                </div>
+                
+                <!-- Measurement line -->
+                <div class="absolute h-0.5 bottom-[50px] left-[100px] transition-all duration-500 ease-out"
+                     [class]="safetyVisuals().bg"
+                     [style.width.px]="curbDist * 2.5">
+                     <div class="absolute -top-7 left-1/2 -translate-x-1/2 bg-slate-900/80 text-white text-xs font-bold px-2 py-1 rounded-md whitespace-nowrap">
+                          {{ curbDist.toFixed(0) }} cm
+                     </div>
+                </div>
+
+              } @else {
+                <div class="w-full h-full flex items-center justify-center pl-16">
+                  <p class="text-slate-500 text-center font-medium">
+                    Sin medición de proximidad.
+                  </p>
+                </div>
+              }
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>

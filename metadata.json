@@ -1,0 +1,7 @@
+{
+  "name": "Copy of Bus Proximity Monitor",
+  "description": "An IoT dashboard to monitor the lateral distance between a bus and the curb when stopped, ensuring safe and accessible boarding for all passengers.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

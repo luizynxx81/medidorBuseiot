@@ -1,0 +1,99 @@
+/* The font is now imported globally in index.html for better practice. */
+
+@keyframes fadeIn {
+  from { 
+    opacity: 0; 
+    transform: translateY(10px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0);
+  }
+}
+
+.card-container {
+  animation: fadeIn 0.6s ease-out forwards;
+}
+
+/* More pronounced glow effects for status lights */
+.light-glow-green {
+  box-shadow: 0 0 24px 6px rgba(74, 222, 128, 0.6);
+}
+.light-glow-yellow {
+  box-shadow: 0 0 24px 6px rgba(250, 204, 21, 0.6);
+}
+.light-glow-red {
+  box-shadow: 0 0 24px 6px rgba(239, 68, 68, 0.6);
+}
+
+
+/* Text glow effects for the main metric */
+.text-shadow-cyan {
+  text-shadow: 0 0 15px rgba(34, 211, 238, 0.6);
+}
+.text-glow-green {
+  text-shadow: 0 0 20px rgba(74, 222, 128, 0.7);
+}
+.text-glow-yellow {
+  text-shadow: 0 0 20px rgba(250, 204, 21, 0.7);
+}
+.text-glow-red {
+  text-shadow: 0 0 20px rgba(239, 68, 68, 0.7);
+}
+
+
+@keyframes bus-idle-bob {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+/* --- New Isometric Scene Styles --- */
+.scene {
+  position: relative;
+  perspective: 800px;
+}
+
+.road {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 100%;
+  background-image:
+    linear-gradient(rgba(15, 23, 42, 0.8), rgba(15, 23, 42, 1)),
+    repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(30, 41, 59, 0.5) 10px, rgba(30, 41, 59, 0.5) 20px);
+  transform: rotateX(60deg) rotateZ(0deg) translateY(60px);
+  border-radius: 8px;
+  border: 1px solid rgb(51 65 85);
+}
+
+.curb {
+  position: absolute;
+  left: -20px;
+  bottom: 0;
+  width: 120px;
+  height: 100%;
+  background-color: #4a5568; /* slate-600 */
+  border: 2px solid #718096; /* slate-500 */
+  transform: rotateX(60deg) rotateZ(0deg) translateY(60px);
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+
+.bus-container {
+  position: absolute;
+  bottom: 10px;
+  left: 100px; /* Start position next to curb */
+  animation: bus-idle-bob 2s ease-in-out infinite;
+}
+
+.bus-svg {
+  width: 60px;
+  height: 120px;
+  filter: drop-shadow(0 10px 8px rgba(0, 0, 0, 0.4));
+  transform-origin: center;
+}
