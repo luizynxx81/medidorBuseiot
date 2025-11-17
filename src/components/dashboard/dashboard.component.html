@@ -1,4 +1,4 @@
-<div class="min-h-screen w-full bg-slate-100 dark:bg-gray-950 text-slate-800 dark:text-slate-200 font-sans transition-colors duration-300" (click)="closeMenu()">
+<div class="min-h-screen w-full bg-slate-100 dark:bg-gray-950 text-slate-800 dark:text-slate-200 font-sans transition-colors duration-300" (click)="closeMenu(); unlockAudio()">
   <!-- App Header -->
   <header class="py-6 px-4 sm:px-8">
     <div class="relative inline-block text-left" (click)="$event.stopPropagation()">
@@ -332,7 +332,7 @@
       </header>
 
       <!-- Body -->
-      <div class="p-6 prose prose-sm dark:prose-invert max-w-none prose-p:text-slate-600 dark:prose-p:text-slate-300 prose-headings:text-slate-800 dark:prose-headings:text-slate-200 prose-strong:text-slate-800 dark:prose-strong:text-slate-200">
+      <div class="p-6 prose prose-sm dark:prose-invert max-w-none">
           <h4>Contacto de Soporte</h4>
           <p>
             Si tienes problemas con la aplicación o necesitas reportar un incidente urgente, por favor contáctanos:

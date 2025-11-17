@@ -275,4 +275,27 @@ export class GeminiService {
       throw new Error('Failed to generate dispatch insight due to an API error.');
     }
   }
+
+  async generateStopImprovementImage(stopName: string, issues: string[]): Promise<string> {
+    const issuesString = issues.join(', ');
+    const prompt = `Create a photorealistic, high-quality image of a modern, clean, and accessible public bus stop named "${stopName}". The scene should be bright and welcoming. The bus stop has been renovated to fix the following issues: ${issuesString}. Show the improved state, for example, with clear pathways, proper lighting, no trash, and repaired surfaces.`;
+
+    try {
+        const response = await this.ai.models.generateImages({
+            model: 'imagen-4.0-generate-001',
+            prompt: prompt,
+            config: {
+              numberOfImages: 1,
+              outputMimeType: 'image/jpeg',
+              aspectRatio: '16:9',
+            },
+        });
+        
+        const base64ImageBytes: string = response.generatedImages[0].image.imageBytes;
+        return `data:image/jpeg;base64,${base64ImageBytes}`;
+    } catch (error) {
+        console.error("Error calling Gemini API for image generation:", error);
+        throw new Error("Failed to generate stop improvement image due to an API error.");
+    }
+  }
 }

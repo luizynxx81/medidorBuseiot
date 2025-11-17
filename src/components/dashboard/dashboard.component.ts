@@ -60,6 +60,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   isReportsModalOpen = signal(false);
   isHelpModalOpen = signal(false);
   private alertAudio: HTMLAudioElement;
+  private isAudioUnlocked = signal(false);
 
   // Feedback form state
   feedbackType = signal<'felicitacion' | 'sugerencia' | 'denuncia'>('sugerencia');
@@ -123,7 +124,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
         let previousStatus: 'safe' | 'caution' | 'danger' | 'none' | undefined;
         onCleanup(() => previousStatus = status);
         
-        if (soundEnabled && status === 'danger' && previousStatus !== 'danger') {
+        // Only attempt to play if the user has interacted with the page first
+        if (this.isAudioUnlocked() && soundEnabled && status === 'danger' && previousStatus !== 'danger') {
             this.alertAudio.play().catch(e => console.error("Error playing sound:", e));
         }
     }, { allowSignalWrites: false });
@@ -243,6 +245,21 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   closeMenu(): void {
     this.isMenuOpen.set(false);
+  }
+
+  // New method to unlock audio on first user interaction
+  unlockAudio(): void {
+    if (this.isAudioUnlocked()) return;
+
+    this.isAudioUnlocked.set(true);
+    console.log("User interaction detected. Audio playback now enabled.");
+
+    // After unlocking, immediately check if there's an active alert that needs to be played.
+    // This handles the case where a danger event occurs before the first click.
+    const soundEnabled = this.settingsService.settings().soundAlertsEnabled;
+    if (soundEnabled && this.safetyStatus() === 'danger') {
+        this.alertAudio.play().catch(e => console.error("Error playing sound:", e));
+    }
   }
 
   openSettingsModal(): void {
