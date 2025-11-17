@@ -10,13 +10,10 @@ export class GeminiService {
   private ai: GoogleGenAI;
 
   constructor() {
-    let apiKey = '';
-    // This browser-safe check prevents a ReferenceError if the build tool
-    // fails to replace `process.env.API_KEY`. It first verifies `process` exists
-    // before attempting to access `process.env`.
-    if (typeof process !== 'undefined' && process.env) {
-      apiKey = process.env.API_KEY || '';
-    }
+    // Safely access the API key using optional chaining on `globalThis`.
+    // This is the most robust way to avoid a `ReferenceError` in browser environments
+    // where `process` is not defined.
+    const apiKey = (globalThis as any)?.process?.env?.API_KEY || '';
 
     if (!apiKey) {
       console.error(

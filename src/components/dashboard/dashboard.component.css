@@ -1,3 +1,4 @@
+
 /* The font is now imported globally in index.html for better practice. */
 
 @keyframes fadeIn {
@@ -63,13 +64,27 @@
   left: 0;
   right: 0;
   height: 100%;
+  transform: rotateX(60deg) rotateZ(0deg) translateY(60px);
+  border-radius: 8px;
+  border: 1px solid;
+}
+
+/* Light theme road */
+.light .road {
+  background-image:
+    linear-gradient(rgba(100, 116, 139, 0.8), rgba(100, 116, 139, 1)),
+    repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(148, 163, 184, 0.5) 10px, rgba(148, 163, 184, 0.5) 20px);
+  border-color: #cbd5e1; /* slate-300 */
+}
+
+/* Dark theme road */
+.dark .road {
   background-image:
     linear-gradient(rgba(15, 23, 42, 0.8), rgba(15, 23, 42, 1)),
     repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(30, 41, 59, 0.5) 10px, rgba(30, 41, 59, 0.5) 20px);
-  transform: rotateX(60deg) rotateZ(0deg) translateY(60px);
-  border-radius: 8px;
-  border: 1px solid rgb(51 65 85);
+  border-color: rgb(51 65 85); /* slate-700 */
 }
+
 
 .curb {
   position: absolute;
@@ -77,12 +92,21 @@
   bottom: 0;
   width: 120px;
   height: 100%;
-  background-color: #4a5568; /* slate-600 */
-  border: 2px solid #718096; /* slate-500 */
   transform: rotateX(60deg) rotateZ(0deg) translateY(60px);
   border-top-right-radius: 8px;
   border-bottom-right-radius: 8px;
 }
+
+.light .curb {
+  background-color: #a0aec0; /* slate-400 */
+  border: 2px solid #b8c2d1; /* slate-300 */
+}
+
+.dark .curb {
+  background-color: #4a5568; /* slate-600 */
+  border: 2px solid #718096; /* slate-500 */
+}
+
 
 .bus-container {
   position: absolute;
@@ -112,4 +136,20 @@
 
 .menu-dropdown {
   animation: slideDownFade 0.15s ease-out forwards;
+}
+
+/* --- Event Log Item --- */
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-15px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.event-log-item {
+    animation: slideIn 0.4s ease-out forwards;
 }

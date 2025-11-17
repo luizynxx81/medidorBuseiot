@@ -1,6 +1,7 @@
 
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, inject } from '@angular/core';
 import { DashboardComponent } from './components/dashboard/dashboard.component';
+import { SettingsService } from './services/settings.service';
 
 @Component({
   selector: 'app-root',
@@ -8,4 +9,19 @@ import { DashboardComponent } from './components/dashboard/dashboard.component';
   imports: [DashboardComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class AppComponent {}
+export class AppComponent {
+  private settingsService = inject(SettingsService);
+
+  constructor() {
+    effect(() => {
+      const theme = this.settingsService.settings().theme;
+      if (theme === 'dark') {
+        document.documentElement.classList.add('dark');
+        document.documentElement.classList.remove('light');
+      } else {
+        document.documentElement.classList.add('light');
+        document.documentElement.classList.remove('dark');
+      }
+    });
+  }
+}

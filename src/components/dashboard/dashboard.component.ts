@@ -1,24 +1,38 @@
-import { Component, signal, computed, OnInit, OnDestroy, ChangeDetectionStrategy, WritableSignal, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
+import { Component, signal, computed, OnInit, OnDestroy, ChangeDetectionStrategy, WritableSignal, inject, effect } from '@angular/core';
+import { CommonModule, DatePipe } from '@angular/common';
 import { GeminiService } from '../../services/gemini.service';
 import { FeedbackAnalysis } from '../../models/feedback-analysis.model';
 import { FeedbackAnalysisComponent } from '../feedback-analysis/feedback-analysis.component';
 import { AccessibilityAnalyzerComponent } from '../accessibility-analyzer/accessibility-analyzer.component';
+import { SettingsModalComponent } from '../settings-modal/settings-modal.component';
+import { SettingsService, AppSettings } from '../../services/settings.service';
+import { alertSound } from '../../assets/audio-alert';
 
-// --- DATA STRUCTURE FOR A BUS ---
+// --- DATA STRUCTURES ---
 type BusStatus = 'en-ruta' | 'llegando' | 'detenido' | 'saliendo';
+type EventLevel = 'caution' | 'danger';
+
+interface BusEvent {
+  timestamp: Date;
+  level: EventLevel;
+  message: string;
+}
 
 interface Bus {
   id: number;
   name: string;
+  route: string;
+  driver: string;
   status: WritableSignal<BusStatus>;
-  curbDistanceCm: WritableSignal<number>; // Lateral distance to the curb
-  stateTimer: WritableSignal<number>; // Countdown for the current state
+  curbDistanceCm: WritableSignal<number>;
+  stateTimer: WritableSignal<number>;
+  eventLog: WritableSignal<BusEvent[]>;
 }
 
 @Component({
   selector: 'app-dashboard',
-  imports: [CommonModule, FeedbackAnalysisComponent, AccessibilityAnalyzerComponent],
+  imports: [CommonModule, DatePipe, FeedbackAnalysisComponent, AccessibilityAnalyzerComponent, SettingsModalComponent],
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -26,15 +40,19 @@ interface Bus {
 export class DashboardComponent implements OnInit, OnDestroy {
   // --- INJECTED SERVICES ---
   private geminiService = inject(GeminiService);
+  settingsService = inject(SettingsService);
 
   // --- CONFIGURATION ---
-  readonly SIMULATION_INTERVAL_MS = 2000; // Update every 2 seconds
+  readonly SIMULATION_INTERVAL_MS = 2000;
   readonly MAX_IMAGE_SIZE_MB = 4;
+  readonly MAX_LOG_ENTRIES = 5;
 
   // --- STATE SIGNALS ---
   buses = signal<Bus[]>([]);
   selectedBus = signal<Bus | null>(null);
   isMenuOpen = signal(false);
+  isSettingsModalOpen = signal(false);
+  private alertAudio: HTMLAudioElement;
 
   // Feedback form state
   feedbackType = signal<'felicitacion' | 'sugerencia' | 'denuncia'>('sugerencia');
@@ -48,12 +66,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
   // --- DERIVED COMPUTED SIGNALS (for the selected bus) ---
   safetyStatus = computed<'safe' | 'caution' | 'danger' | 'none'>(() => {
     const bus = this.selectedBus();
+    const { cautionThreshold, dangerThreshold } = this.settingsService.settings();
     if (!bus || bus.status() !== 'detenido') {
       return 'none';
     }
     const distance = bus.curbDistanceCm();
-    if (distance <= 15) return 'safe';
-    if (distance <= 30) return 'caution';
+    if (distance <= cautionThreshold) return 'safe';
+    if (distance <= dangerThreshold) return 'caution';
     return 'danger';
   });
   
@@ -61,37 +80,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
     const status = this.safetyStatus();
     switch (status) {
       case 'safe':
-        return {
-          text: 'text-green-400',
-          glow: 'text-glow-green',
-          border: 'border-green-400',
-          bg: 'bg-green-400',
-          lightGlow: 'light-glow-green',
-        };
+        return { text: 'text-green-500 dark:text-green-400', glow: 'text-glow-green', border: 'border-green-400', bg: 'bg-green-400', lightGlow: 'light-glow-green' };
       case 'caution':
-        return {
-          text: 'text-yellow-400',
-          glow: 'text-glow-yellow',
-          border: 'border-yellow-400',
-          bg: 'bg-yellow-400',
-          lightGlow: 'light-glow-yellow',
-        };
+        return { text: 'text-yellow-500 dark:text-yellow-400', glow: 'text-glow-yellow', border: 'border-yellow-400', bg: 'bg-yellow-400', lightGlow: 'light-glow-yellow' };
       case 'danger':
-        return {
-          text: 'text-red-500',
-          glow: 'text-glow-red',
-          border: 'border-red-500',
-          bg: 'bg-red-500',
-          lightGlow: 'light-glow-red',
-        };
+        return { text: 'text-red-600 dark:text-red-500', glow: 'text-glow-red', border: 'border-red-500', bg: 'bg-red-500', lightGlow: 'light-glow-red' };
       default: // 'none'
-        return {
-          text: 'text-cyan-400',
-          glow: '',
-          border: 'border-slate-700',
-          bg: 'bg-slate-800',
-          lightGlow: '',
-        };
+        return { text: 'text-cyan-600 dark:text-cyan-400', glow: '', border: 'border-slate-400 dark:border-slate-700', bg: 'bg-slate-300 dark:bg-slate-800', lightGlow: '' };
     }
   });
 
@@ -110,6 +105,22 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   private simulationInterval: any;
+  
+  constructor() {
+    this.alertAudio = new Audio(alertSound);
+    // Effect to play sound on new 'danger' status
+    effect((onCleanup) => {
+        const status = this.safetyStatus();
+        const soundEnabled = this.settingsService.settings().soundAlertsEnabled;
+
+        let previousStatus: 'safe' | 'caution' | 'danger' | 'none' | undefined;
+        onCleanup(() => previousStatus = status);
+        
+        if (soundEnabled && status === 'danger' && previousStatus !== 'danger') {
+            this.alertAudio.play().catch(e => console.error("Error playing sound:", e));
+        }
+    }, { allowSignalWrites: false });
+  }
 
   ngOnInit(): void {
     this.initializeBuses();
@@ -122,12 +133,18 @@ export class DashboardComponent implements OnInit, OnDestroy {
   
   initializeBuses(): void {
     const initialBuses: Bus[] = [
-      { id: 1, name: 'Bus #72A', status: signal('detenido'), curbDistanceCm: signal(12), stateTimer: signal(5) },
-      { id: 2, name: 'Bus #72B', status: signal('en-ruta'), curbDistanceCm: signal(0), stateTimer: signal(8) },
-      { id: 3, name: 'Bus #72C', status: signal('llegando'), curbDistanceCm: signal(0), stateTimer: signal(3) },
+      { id: 1, name: 'Bus #72A', route: 'Ruta Central', driver: 'Ana García', status: signal('detenido'), curbDistanceCm: signal(28), stateTimer: signal(5), eventLog: signal([]) },
+      { id: 2, name: 'Bus #72B', route: 'Ruta Norte', driver: 'Carlos Pérez', status: signal('en-ruta'), curbDistanceCm: signal(0), stateTimer: signal(8), eventLog: signal([]) },
+      { id: 3, name: 'Bus #72C', route: 'Ruta Sur', driver: 'Sofía Rodríguez', status: signal('llegando'), curbDistanceCm: signal(0), stateTimer: signal(3), eventLog: signal([]) },
     ];
     this.buses.set(initialBuses);
     this.selectedBus.set(initialBuses[0]);
+    // Log initial events if necessary
+    initialBuses.forEach(bus => {
+        if (bus.status() === 'detenido') {
+            this.logProximityEvent(bus);
+        }
+    });
   }
 
   startSimulation(): void {
@@ -152,26 +169,49 @@ export class DashboardComponent implements OnInit, OnDestroy {
         switch (bus.status()) {
           case 'detenido':
             bus.status.set('saliendo');
-            bus.stateTimer.set(3); // 6 seconds in 'saliendo' state
-            bus.curbDistanceCm.set(0); // Clear distance when leaving
+            bus.stateTimer.set(3);
+            bus.curbDistanceCm.set(0);
             break;
           case 'saliendo':
             bus.status.set('en-ruta');
-            bus.stateTimer.set(Math.floor(Math.random() * 10 + 5)); // 10-30 seconds 'en-ruta'
+            bus.stateTimer.set(Math.floor(Math.random() * 10 + 5));
             break;
           case 'en-ruta':
             bus.status.set('llegando');
-            bus.stateTimer.set(4); // 8 seconds 'llegando'
+            bus.stateTimer.set(4);
             break;
           case 'llegando':
             bus.status.set('detenido');
-            bus.stateTimer.set(5); // 10 seconds 'detenido'
-            // Generate a new random curb distance upon stopping
-            bus.curbDistanceCm.set(5 + Math.random() * 40); // 5cm to 45cm
+            bus.stateTimer.set(5);
+            const newDistance = 5 + Math.random() * 40;
+            bus.curbDistanceCm.set(newDistance);
+            this.logProximityEvent(bus);
             break;
         }
       }
     });
+  }
+
+  logProximityEvent(bus: Bus): void {
+      const distance = bus.curbDistanceCm();
+      const { dangerThreshold, cautionThreshold } = this.settingsService.settings();
+      let level: EventLevel | null = null;
+      
+      if (distance > dangerThreshold) level = 'danger';
+      else if (distance > cautionThreshold) level = 'caution';
+
+      if (level) {
+          const newEvent: BusEvent = {
+              timestamp: new Date(),
+              level: level,
+              message: `Distancia detectada: ${distance.toFixed(0)} cm`,
+          };
+          bus.eventLog.update(log => {
+            const newLog = [newEvent, ...log];
+            // Keep the log from growing indefinitely
+            return newLog.slice(0, this.MAX_LOG_ENTRIES);
+          });
+      }
   }
   
   selectBus(bus: Bus): void {
@@ -184,6 +224,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   closeMenu(): void {
     this.isMenuOpen.set(false);
+  }
+
+  openSettingsModal(): void {
+    this.isSettingsModalOpen.set(true);
+    this.closeMenu();
+  }
+
+  handleSettingsSave(newSettings: AppSettings): void {
+    this.settingsService.saveSettings(newSettings);
+    this.isSettingsModalOpen.set(false);
   }
   
   handleFeedbackInput(event: Event): void {
@@ -205,7 +255,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
       return;
     }
     
-    // Validate file type and size
     if (!file.type.startsWith('image/')) {
         this.analysisError.set('Por favor, selecciona un archivo de imagen válido.');
         return;
@@ -217,14 +266,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
     this.feedbackImageFile.set(file);
 
-    // Create a preview URL
     const reader = new FileReader();
     reader.onload = (e: ProgressEvent<FileReader>) => {
       this.feedbackImagePreviewUrl.set(e.target?.result as string);
     };
     reader.readAsDataURL(file);
     
-    input.value = ''; // Reset input to allow re-selection of the same file
+    input.value = '';
   }
 
   removeImage(): void {
@@ -255,7 +303,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
       );
       this.analysisResult.set(result);
       
-      // Clear form on success
       this.feedbackMessage.set('');
       this.feedbackType.set('sugerencia');
       this.removeImage();
