@@ -67,17 +67,14 @@
   transform: rotateX(60deg) rotateZ(0deg) translateY(60px);
   border-radius: 8px;
   border: 1px solid;
-}
-
-/* Light theme road */
-.light .road {
+  /* Light theme styles are now default */
   background-image:
     linear-gradient(rgba(100, 116, 139, 0.8), rgba(100, 116, 139, 1)),
     repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(148, 163, 184, 0.5) 10px, rgba(148, 163, 184, 0.5) 20px);
   border-color: #cbd5e1; /* slate-300 */
 }
 
-/* Dark theme road */
+/* Dark theme road (override) */
 .dark .road {
   background-image:
     linear-gradient(rgba(15, 23, 42, 0.8), rgba(15, 23, 42, 1)),
@@ -95,13 +92,12 @@
   transform: rotateX(60deg) rotateZ(0deg) translateY(60px);
   border-top-right-radius: 8px;
   border-bottom-right-radius: 8px;
-}
-
-.light .curb {
+  /* Light theme styles are now default */
   background-color: #a0aec0; /* slate-400 */
   border: 2px solid #b8c2d1; /* slate-300 */
 }
 
+/* Dark theme curb (override) */
 .dark .curb {
   background-color: #4a5568; /* slate-600 */
   border: 2px solid #718096; /* slate-500 */

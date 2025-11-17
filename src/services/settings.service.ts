@@ -1,4 +1,5 @@
 
+
 import { Injectable, signal, WritableSignal } from '@angular/core';
 
 export interface AppSettings {
@@ -6,6 +7,8 @@ export interface AppSettings {
   cautionThreshold: number; // in cm
   dangerThreshold: number; // in cm
   soundAlertsEnabled: boolean;
+  feedbackAnalysisEnabled: boolean;
+  accessibilityAnalysisEnabled: boolean;
 }
 
 const DEFAULTS: AppSettings = {
@@ -13,6 +16,8 @@ const DEFAULTS: AppSettings = {
   cautionThreshold: 15,
   dangerThreshold: 30,
   soundAlertsEnabled: true,
+  feedbackAnalysisEnabled: true,
+  accessibilityAnalysisEnabled: true,
 };
 
 const STORAGE_KEY = 'streetsafe-settings';

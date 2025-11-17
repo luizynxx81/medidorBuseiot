@@ -1,4 +1,5 @@
 
+
 import { Component, signal, computed, OnInit, OnDestroy, ChangeDetectionStrategy, WritableSignal, inject, effect } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { GeminiService } from '../../services/gemini.service';
@@ -286,6 +287,17 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.isSubmittingFeedback.set(true);
     this.analysisResult.set(null);
     this.analysisError.set(null);
+
+    if (!this.settingsService.settings().feedbackAnalysisEnabled) {
+      // Simulate a quick submission without AI analysis
+      setTimeout(() => {
+        this.feedbackMessage.set('');
+        this.feedbackType.set('sugerencia');
+        this.removeImage();
+        this.isSubmittingFeedback.set(false);
+      }, 500);
+      return;
+    }
 
     try {
       let imagePayload: { base64: string; mimeType: string } | undefined;

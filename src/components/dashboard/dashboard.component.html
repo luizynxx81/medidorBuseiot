@@ -1,4 +1,3 @@
-
 <div class="min-h-screen w-full bg-slate-100 dark:bg-gray-950 text-slate-800 dark:text-slate-200 font-sans transition-colors duration-300" (click)="closeMenu()">
   <!-- App Header -->
   <header class="py-6 px-4 sm:px-8">
@@ -268,43 +267,45 @@
                               <span class="flex h-8 w-8 items-center justify-center rounded-full bg-red-500/20 text-red-500 dark:text-red-400">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 3.001-1.742 3.001H4.42c-1.53 0-2.493-1.667-1.743-3.001l5.58-9.92zM10 13a1 1 0 110-2 1 1 0 010 2zm-1.75-5.25a.75.75 0 001.5 0v-2.5a.75.75 0 00-1.5 0v2.5z" clip-rule="evenodd" /></svg>
                               </span>
-                            } @else {
+                            } @else if (event.level === 'caution') {
                               <span class="flex h-8 w-8 items-center justify-center rounded-full bg-yellow-500/20 text-yellow-500 dark:text-yellow-400">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" /></svg>
                               </span>
                             }
                           </div>
                           <div class="flex-grow">
-                              <p class="font-semibold text-slate-700 dark:text-slate-300 text-sm">{{ event.message }}</p>
-                              <p class="text-xs text-slate-500 dark:text-slate-500">{{ event.timestamp | date:'shortTime' }} - {{ event.timestamp | date:'mediumDate' }}</p>
+                            <p class="text-sm font-semibold text-slate-800 dark:text-slate-200">{{ event.message }}</p>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">{{ event.timestamp | date:'shortTime' }}</p>
                           </div>
                         </div>
                       }
                     </div>
                   } @else {
-                    <div class="text-center text-sm text-slate-500 dark:text-slate-500 bg-slate-200/60 dark:bg-slate-800/60 p-4 rounded-lg">
-                      No hay eventos de precaución o peligro registrados recientemente para esta unidad.
+                    <div class="text-center p-4 text-sm text-slate-500 dark:text-slate-500">
+                      <p>No hay eventos recientes para esta unidad.</p>
                     </div>
                   }
                 </div>
             }
           </div>
 
-          <!-- New Accessibility Analyzer -->
-          <div class="bg-slate-100/50 dark:bg-slate-900/70 p-6 rounded-xl border border-slate-200 dark:border-slate-800">
-            <app-accessibility-analyzer />
-          </div>
+          <!-- Accessibility Analysis Card -->
+          @if (settingsService.settings().accessibilityAnalysisEnabled) {
+            <div class="bg-slate-100/50 dark:bg-slate-900/70 p-6 rounded-xl border border-slate-200 dark:border-slate-800">
+              <app-accessibility-analyzer />
+            </div>
+          }
+
         </div>
       </div>
     </div>
   </main>
-  
-  <!-- Settings Modal -->
-  @if(isSettingsModalOpen()) {
-    <app-settings-modal 
-      [currentSettings]="settingsService.settings()"
-      (close)="isSettingsModalOpen.set(false)"
-      (save)="handleSettingsSave($event)"
-    />
-  }
 </div>
+
+@if(isSettingsModalOpen()) {
+  <app-settings-modal 
+    [currentSettings]="settingsService.settings()" 
+    (close)="isSettingsModalOpen.set(false)" 
+    (save)="handleSettingsSave($event)" 
+  />
+}

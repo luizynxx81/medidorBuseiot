@@ -1,4 +1,5 @@
 
+
 import { Component, ChangeDetectionStrategy, input, output, signal, WritableSignal, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AppSettings, SettingsService } from '../../services/settings.service';
@@ -27,6 +28,8 @@ export class SettingsModalComponent implements OnInit {
       cautionThreshold: 15,
       dangerThreshold: 30,
       soundAlertsEnabled: true,
+      feedbackAnalysisEnabled: true,
+      accessibilityAnalysisEnabled: true,
     });
   }
 
@@ -48,7 +51,9 @@ export class SettingsModalComponent implements OnInit {
         theme: 'dark',
         cautionThreshold: 15,
         dangerThreshold: 30,
-        soundAlertsEnabled: true
+        soundAlertsEnabled: true,
+        feedbackAnalysisEnabled: true,
+        accessibilityAnalysisEnabled: true,
     };
     this.settingsForm.set(defaults);
     this.save.emit(defaults);
@@ -78,5 +83,13 @@ export class SettingsModalComponent implements OnInit {
 
   toggleSoundAlerts(): void {
     this.settingsForm.update(s => ({ ...s, soundAlertsEnabled: !s.soundAlertsEnabled }));
+  }
+
+  toggleFeedbackAnalysis(): void {
+    this.settingsForm.update(s => ({ ...s, feedbackAnalysisEnabled: !s.feedbackAnalysisEnabled }));
+  }
+
+  toggleAccessibilityAnalysis(): void {
+    this.settingsForm.update(s => ({ ...s, accessibilityAnalysisEnabled: !s.accessibilityAnalysisEnabled }));
   }
 }
