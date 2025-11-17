@@ -2,6 +2,9 @@ import { Injectable } from '@angular/core';
 import { GoogleGenAI, Type } from '@google/genai';
 import { FeedbackAnalysis } from '../models/feedback-analysis.model';
 import { AccessibilityAnalysis } from '../models/accessibility-analysis.model';
+import { Bus } from '../components/dashboard/dashboard.component';
+import { Stop } from '../models/stop.model';
+import { AssistantMessage, AssistantMessageType } from '../models/ai-assistant.model';
 
 @Injectable({
   providedIn: 'root',
@@ -168,6 +171,108 @@ export class GeminiService {
     } catch (error) {
       console.error("Error calling Gemini API:", error);
       throw new Error("Failed to analyze feedback due to an API error.");
+    }
+  }
+
+  async generateDispatchInsight(
+    buses: Bus[],
+    stops: Stop[],
+    previousMessages: AssistantMessage[]
+  ): Promise<{ message: string; type: AssistantMessageType; involvedBusId?: number; } | null> {
+
+    // Sanitize data for the prompt to keep it concise
+    const fleetState = buses.map(bus => ({
+      id: bus.id,
+      name: bus.name,
+      status: bus.status(),
+      curbDistanceCm: bus.curbDistanceCm(),
+      // only include recent events to keep prompt small
+      eventLog: bus.eventLog().slice(0, 2), 
+    }));
+
+    const stopState = stops.filter(s => s.status !== 'Apto').map(s => ({
+        name: s.name,
+        route: s.route,
+        status: s.status,
+        issues: s.issues.map(i => i.description)
+    }));
+
+    const previousMessageTexts = previousMessages.slice(0, 3).map(m => m.message);
+
+    const schema = {
+      type: Type.OBJECT,
+      properties: {
+        shouldRespond: {
+            type: Type.BOOLEAN,
+            description: "Establecer en true SÓLO si se encuentra una visión nueva, no repetitiva y significativa. De lo contrario, establecer en false."
+        },
+        insight: {
+          type: Type.OBJECT,
+          description: "El objeto de la visión. Proporciónalo sólo si shouldRespond es true.",
+          properties: {
+            message: {
+              type: Type.STRING,
+              description: 'El mensaje conciso y accionable para el despachador. Debe estar en español.',
+            },
+            type: {
+              type: Type.STRING,
+              description: 'El tipo de mensaje. Debe ser "info", "alert", o "success".',
+            },
+            involvedBusId: {
+              type: Type.INTEGER,
+              description: 'Opcional. El ID del autobús principal involucrado en la información.',
+            }
+          }
+        }
+      },
+      required: ['shouldRespond']
+    };
+
+    const systemInstruction = `Eres un experto asistente de despacho de IA para un sistema de transporte público. Tu rol es monitorear datos de la flota en tiempo real y proporcionar UNA SOLA visión concisa y accionable para el despachador humano. Analiza los datos JSON proporcionados, que incluyen el estado actual de todos los buses, sus registros de eventos recientes y la condición de las paradas de autobús problemáticas.
+
+    Tu tarea es identificar la situación MÁS CRÍTICA o interesante en este momento. Esto podría ser:
+    - Un autobús con repetidos eventos de 'peligro'.
+    - Un autobús que se aproxima a una parada 'No Apta' en su ruta.
+    - Un conductor con un historial limpio en esta sesión.
+    - Una ruta que está experimentando múltiples problemas.
+
+    REGLAS IMPORTANTES:
+    1. NO SEAS REPETITIVO. Revisa la lista de 'previousMessageTexts' y NO generes una idea que ya se haya comunicado.
+    2. SÉ RELEVANTE. Si no hay nada nuevo o importante que decir, establece 'shouldRespond' en 'false'. No inventes problemas.
+    3. SÉ CONCISO. El mensaje debe ser breve y al grano.
+    4. Responde ÚNICAMENTE con un objeto JSON en el esquema solicitado.`;
+
+    const prompt = `Aquí están los datos actuales:
+    - Estado de la flota: ${JSON.stringify(fleetState)}
+    - Paradas problemáticas: ${JSON.stringify(stopState)}
+    - Mensajes anteriores recientes: ${JSON.stringify(previousMessageTexts)}
+
+    Analiza estos datos y proporciona tu conclusión.`;
+
+    try {
+      const response = await this.ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: { parts: [{ text: prompt }] },
+        config: {
+          systemInstruction: systemInstruction,
+          responseMimeType: 'application/json',
+          responseSchema: schema,
+        },
+      });
+
+      const jsonText = response.text.trim();
+      const result = JSON.parse(jsonText);
+      
+      if (result.shouldRespond && result.insight) {
+        // Basic validation
+        if (result.insight.message && result.insight.type) {
+            return result.insight;
+        }
+      }
+      return null; // No new insight found
+    } catch (error) {
+      console.error('Error calling Gemini API for dispatch insight:', error);
+      throw new Error('Failed to generate dispatch insight due to an API error.');
     }
   }
 }

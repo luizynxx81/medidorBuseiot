@@ -289,6 +289,9 @@
             }
           </div>
 
+          <!-- AI Dispatch Assistant -->
+          <app-ai-assistant [buses]="buses()" [stops]="stops()"></app-ai-assistant>
+
           <!-- Accessibility Analysis Card -->
           @if (settingsService.settings().accessibilityAnalysisEnabled) {
             <div class="bg-slate-100/50 dark:bg-slate-900/70 p-6 rounded-xl border border-slate-200 dark:border-slate-800">
