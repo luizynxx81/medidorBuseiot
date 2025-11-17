@@ -9,18 +9,20 @@ import { AccessibilityAnalyzerComponent } from '../accessibility-analyzer/access
 import { SettingsModalComponent } from '../settings-modal/settings-modal.component';
 import { SettingsService, AppSettings } from '../../services/settings.service';
 import { alertSound } from '../../assets/audio-alert';
+import { ReportsModalComponent } from '../reports-modal/reports-modal.component';
+import { Stop } from '../../models/stop.model';
 
 // --- DATA STRUCTURES ---
 type BusStatus = 'en-ruta' | 'llegando' | 'detenido' | 'saliendo';
 type EventLevel = 'caution' | 'danger';
 
-interface BusEvent {
+export interface BusEvent {
   timestamp: Date;
   level: EventLevel;
   message: string;
 }
 
-interface Bus {
+export interface Bus {
   id: number;
   name: string;
   route: string;
@@ -33,7 +35,7 @@ interface Bus {
 
 @Component({
   selector: 'app-dashboard',
-  imports: [CommonModule, DatePipe, FeedbackAnalysisComponent, AccessibilityAnalyzerComponent, SettingsModalComponent],
+  imports: [CommonModule, DatePipe, FeedbackAnalysisComponent, AccessibilityAnalyzerComponent, SettingsModalComponent, ReportsModalComponent],
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -50,9 +52,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   // --- STATE SIGNALS ---
   buses = signal<Bus[]>([]);
+  stops = signal<Stop[]>([]);
   selectedBus = signal<Bus | null>(null);
   isMenuOpen = signal(false);
   isSettingsModalOpen = signal(false);
+  isReportsModalOpen = signal(false);
+  isHelpModalOpen = signal(false);
   private alertAudio: HTMLAudioElement;
 
   // Feedback form state
@@ -125,6 +130,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.initializeBuses();
+    this.initializeStops();
     this.startSimulation();
   }
 
@@ -146,6 +152,17 @@ export class DashboardComponent implements OnInit, OnDestroy {
             this.logProximityEvent(bus);
         }
     });
+  }
+
+  initializeStops(): void {
+    const initialStops: Stop[] = [
+        { id: 'stop-01', name: 'Estación Central', route: 'Ruta Central', status: 'Apto', issues: [], lastChecked: 'Hoy' },
+        { id: 'stop-02', name: 'Plaza Mayor', route: 'Ruta Central', status: 'No Apto', issues: [{id: 1, description: 'Rampa de acceso obstruida por basura.', severity: 'Alta'}, {id: 2, description: 'Iluminación insuficiente.', severity: 'Media'}], lastChecked: 'Ayer' },
+        { id: 'stop-03', name: 'Mercado Norte', route: 'Ruta Norte', status: 'Apto', issues: [], lastChecked: 'Hoy' },
+        { id: 'stop-04', name: 'Hospital General', route: 'Ruta Sur', status: 'No Apto', issues: [{id: 1, description: 'El pavimento está roto cerca de la zona de espera.', severity: 'Media'}], lastChecked: 'Hace 3 días'},
+        { id: 'stop-05', name: 'Parque de la Ciudad', route: 'Ruta Norte', status: 'Pendiente', issues: [], lastChecked: 'Nunca'}
+    ];
+    this.stops.set(initialStops);
   }
 
   startSimulation(): void {
@@ -230,6 +247,24 @@ export class DashboardComponent implements OnInit, OnDestroy {
   openSettingsModal(): void {
     this.isSettingsModalOpen.set(true);
     this.closeMenu();
+  }
+
+  openReportsModal(): void {
+    this.isReportsModalOpen.set(true);
+    this.closeMenu();
+  }
+
+  closeReportsModal(): void {
+    this.isReportsModalOpen.set(false);
+  }
+
+  openHelpModal(): void {
+    this.isHelpModalOpen.set(true);
+    this.closeMenu();
+  }
+
+  closeHelpModal(): void {
+    this.isHelpModalOpen.set(false);
   }
 
   handleSettingsSave(newSettings: AppSettings): void {
