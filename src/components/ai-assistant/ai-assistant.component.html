@@ -21,7 +21,7 @@
   <div class="flex-grow overflow-y-auto -mr-2 pr-2 space-y-3 min-h-[150px]">
     @if (messages().length > 0) {
       @for (message of messages(); track message.timestamp) {
-        <div class="p-3 rounded-lg flex items-start gap-3 assistant-message"
+        <div class="p-3 rounded-lg flex flex-col gap-2 assistant-message"
              [class.bg-slate-200/60]="message.type === 'info'"
              [class.dark:bg-slate-800/60]="message.type === 'info'"
              [class.bg-yellow-500/10]="message.type === 'alert'"
@@ -29,30 +29,39 @@
              [class.bg-green-500/10]="message.type === 'success'"
              [class.dark:bg-green-500/20]="message.type === 'success'">
           
-          <div class="flex-shrink-0 w-5 h-5 mt-0.5"
-               [class.text-cyan-500]="message.type === 'info'"
-               [class.dark:text-cyan-400]="message.type === 'info'"
-               [class.text-yellow-500]="message.type === 'alert'"
-               [class.dark:text-yellow-400]="message.type === 'alert'"
-               [class.text-green-500]="message.type === 'success'"
-               [class.dark:text-green-400]="message.type === 'success'">
-            @switch (message.type) {
-              @case ('alert') {
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 3.001-1.742 3.001H4.42c-1.53 0-2.493-1.667-1.743-3.001l5.58-9.92zM10 13a1 1 0 110-2 1 1 0 010 2zm-1.75-5.25a.75.75 0 001.5 0v-2.5a.75.75 0 00-1.5 0v2.5z" clip-rule="evenodd" /></svg>
+          <div class="flex items-start gap-3">
+            <div class="flex-shrink-0 w-5 h-5 mt-0.5"
+                [class.text-cyan-500]="message.type === 'info'"
+                [class.dark:text-cyan-400]="message.type === 'info'"
+                [class.text-yellow-500]="message.type === 'alert'"
+                [class.dark:text-yellow-400]="message.type === 'alert'"
+                [class.text-green-500]="message.type === 'success'"
+                [class.dark:text-green-400]="message.type === 'success'">
+              @switch (message.type) {
+                @case ('alert') {
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 3.001-1.742 3.001H4.42c-1.53 0-2.493-1.667-1.743-3.001l5.58-9.92zM10 13a1 1 0 110-2 1 1 0 010 2zm-1.75-5.25a.75.75 0 001.5 0v-2.5a.75.75 0 00-1.5 0v2.5z" clip-rule="evenodd" /></svg>
+                }
+                @case ('success') {
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>
+                }
+                @case ('info') {
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A.75.75 0 0010 14.25l.003-.001a.75.75 0 00.724-1.065l-.459-2.066a.25.25 0 01.244-.304H11a.75.75 0 000-1.5H9z" clip-rule="evenodd" /></svg>
+                }
               }
-              @case ('success') {
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>
-              }
-              @case ('info') {
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A.75.75 0 0010 14.25l.003-.001a.75.75 0 00.724-1.065l-.459-2.066a.25.25 0 01.244-.304H11a.75.75 0 000-1.5H9z" clip-rule="evenodd" /></svg>
-              }
-            }
-          </div>
+            </div>
 
-          <div>
-            <p class="text-sm text-slate-800 dark:text-slate-200">{{ message.message }}</p>
-            <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">{{ message.timestamp | date:'shortTime' }}</p>
+            <div>
+              <p class="text-sm text-slate-800 dark:text-slate-200">{{ message.message }}</p>
+              <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">{{ message.timestamp | date:'shortTime' }}</p>
+            </div>
           </div>
+          @if (message.type === 'alert' && message.involvedBusId) {
+            <div class="pl-8 pt-2">
+                <button (click)="escalateToIncident(message)" class="text-xs font-bold bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-500 dark:text-yellow-400 px-3 py-1.5 rounded-md transition-colors w-full text-center">
+                    Crear Incidente
+                </button>
+            </div>
+           }
         </div>
       }
     } @else {

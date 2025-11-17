@@ -1,4 +1,4 @@
-import { Component, ChangeDetectionStrategy, input, effect, signal, inject } from '@angular/core';
+import { Component, ChangeDetectionStrategy, input, effect, signal, inject, output } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { Bus } from '../dashboard/dashboard.component';
 import { Stop } from '../../models/stop.model';
@@ -16,6 +16,7 @@ import { AssistantMessage } from '../../models/ai-assistant.model';
 export class AiAssistantComponent {
   buses = input.required<Bus[]>();
   stops = input.required<Stop[]>();
+  createIncident = output<{ message: AssistantMessage, bus: Bus }>();
 
   private geminiService = inject(GeminiService);
   private analysisTimer: any;
@@ -74,6 +75,14 @@ export class AiAssistantComponent {
       // Don't show a persistent error to the user, just log it. The assistant can try again later.
     } finally {
       this.isLoading.set(false);
+    }
+  }
+
+  escalateToIncident(message: AssistantMessage): void {
+    if (!message.involvedBusId) return;
+    const bus = this.buses().find(b => b.id === message.involvedBusId);
+    if (bus) {
+      this.createIncident.emit({ message, bus });
     }
   }
 }

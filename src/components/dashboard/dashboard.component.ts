@@ -13,6 +13,10 @@ import { ReportsModalComponent } from '../reports-modal/reports-modal.component'
 import { Stop } from '../../models/stop.model';
 import { AiAssistantComponent } from '../ai-assistant/ai-assistant.component';
 import { ChatAssistantComponent } from '../chat-assistant/chat-assistant.component';
+import { Incident, IncidentStatus } from '../../models/incident.model';
+import { IncidentFormModalComponent } from '../incident-form-modal/incident-form-modal.component';
+import { IncidentTrackerModalComponent } from '../incident-tracker-modal/incident-tracker-modal.component';
+import { AssistantMessage } from '../../models/ai-assistant.model';
 
 // --- DATA STRUCTURES ---
 type BusStatus = 'en-ruta' | 'llegando' | 'detenido' | 'saliendo';
@@ -37,7 +41,7 @@ export interface Bus {
 
 @Component({
   selector: 'app-dashboard',
-  imports: [CommonModule, DatePipe, FeedbackAnalysisComponent, AccessibilityAnalyzerComponent, SettingsModalComponent, ReportsModalComponent, AiAssistantComponent, ChatAssistantComponent],
+  imports: [CommonModule, DatePipe, FeedbackAnalysisComponent, AccessibilityAnalyzerComponent, SettingsModalComponent, ReportsModalComponent, AiAssistantComponent, ChatAssistantComponent, IncidentFormModalComponent, IncidentTrackerModalComponent],
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -55,11 +59,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
   // --- STATE SIGNALS ---
   buses = signal<Bus[]>([]);
   stops = signal<Stop[]>([]);
+  incidents = signal<Incident[]>([]);
   selectedBus = signal<Bus | null>(null);
   isMenuOpen = signal(false);
   isSettingsModalOpen = signal(false);
   isReportsModalOpen = signal(false);
   isHelpModalOpen = signal(false);
+  isIncidentTrackerOpen = signal(false);
+  isIncidentFormOpen = signal(false);
+  incidentToCreate = signal<{ eventMessage: string; bus: Bus } | null>(null);
+  
   private alertAudio: HTMLAudioElement;
   private isAudioUnlocked = signal(false);
 
@@ -135,6 +144,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.initializeBuses();
     this.initializeStops();
+    this.initializeIncidents();
     this.startSimulation();
   }
 
@@ -167,6 +177,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
         { id: 'stop-05', name: 'Parque de la Ciudad', route: 'Ruta Norte', status: 'Pendiente', issues: [], lastChecked: 'Nunca'}
     ];
     this.stops.set(initialStops);
+  }
+
+  initializeIncidents(): void {
+    // Start with a clean slate, or load from a service/storage in a real app.
+    this.incidents.set([]);
   }
 
   startSimulation(): void {
@@ -285,6 +300,56 @@ export class DashboardComponent implements OnInit, OnDestroy {
   closeHelpModal(): void {
     this.isHelpModalOpen.set(false);
   }
+  
+  // --- Incident Management ---
+  openIncidentTracker(): void {
+    this.isIncidentTrackerOpen.set(true);
+    this.closeMenu();
+  }
+
+  closeIncidentTracker(): void {
+    this.isIncidentTrackerOpen.set(false);
+  }
+
+  openIncidentForm(eventMessage: string, bus: Bus): void {
+    this.incidentToCreate.set({ eventMessage, bus });
+    this.isIncidentFormOpen.set(true);
+  }
+  
+  openIncidentFormFromAI(event: { message: AssistantMessage, bus: Bus }): void {
+    this.incidentToCreate.set({ eventMessage: event.message.message, bus: event.bus });
+    this.isIncidentFormOpen.set(true);
+  }
+
+  closeIncidentForm(): void {
+    this.isIncidentFormOpen.set(false);
+    this.incidentToCreate.set(null);
+  }
+  
+  handleIncidentCreation(incidentData: Omit<Incident, 'id' | 'createdAt' | 'bus'> & {bus: Bus, notes?: string}): void {
+    const newIncident: Incident = {
+      id: Date.now(), // Simple unique ID for this session
+      createdAt: new Date(),
+      status: 'Abierto',
+      ...incidentData,
+      bus: { // Store a snapshot of bus info, not the reactive signal
+        id: incidentData.bus.id,
+        name: incidentData.bus.name,
+        driver: incidentData.bus.driver
+      }
+    };
+    this.incidents.update(list => [newIncident, ...list]);
+    this.closeIncidentForm();
+  }
+  
+  handleIncidentStatusChange(update: { incidentId: number; newStatus: IncidentStatus }): void {
+    this.incidents.update(list =>
+      list.map(inc =>
+        inc.id === update.incidentId ? { ...inc, status: update.newStatus } : inc
+      )
+    );
+  }
+
 
   handleSettingsSave(newSettings: AppSettings): void {
     this.settingsService.saveSettings(newSettings);

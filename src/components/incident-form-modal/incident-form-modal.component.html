@@ -1,0 +1,61 @@
+<div class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 modal-backdrop" (click)="onClose()">
+  <div class="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl shadow-2xl border border-slate-300 dark:border-slate-700 modal-content" (click)="$event.stopPropagation()">
+    <!-- Header -->
+    <header class="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-800">
+      <h2 class="text-lg font-bold text-slate-900 dark:text-white">Crear Nuevo Incidente</h2>
+      <button (click)="onClose()" class="text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+      </button>
+    </header>
+
+    <!-- Body -->
+    <div class="p-6 space-y-4">
+      <!-- Pre-populated info -->
+      <div class="bg-slate-100 dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
+          <p class="text-sm"><span class="font-semibold text-slate-600 dark:text-slate-400">Unidad:</span> <span class="font-bold text-slate-800 dark:text-slate-200">{{ data().bus.name }}</span> (Conductor: {{ data().bus.driver }})</p>
+          <p class="text-sm mt-1"><span class="font-semibold text-slate-600 dark:text-slate-400">Evento Original:</span> <span class="font-bold text-red-500 dark:text-red-400">"{{ data().eventMessage }}"</span></p>
+      </div>
+      
+      <!-- Form Fields -->
+      <div>
+        <label for="incidentTitle" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Título del Incidente <span class="text-red-500">*</span></label>
+        <input type="text" id="incidentTitle"
+               [value]="title()"
+               (input)="title.set($any($event.target).value)"
+               placeholder="Ej: Proximidad peligrosa en Estación Central"
+               class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md p-2 text-sm focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none">
+      </div>
+      
+      <div>
+        <label for="incidentPriority" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Prioridad</label>
+        <select id="incidentPriority" 
+                [value]="priority()"
+                (change)="priority.set($any($event.target).value)"
+                class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md p-2 text-sm focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none">
+            <option value="Baja">Baja</option>
+            <option value="Media">Media</option>
+            <option value="Alta">Alta</option>
+        </select>
+      </div>
+      
+      <div>
+        <label for="incidentNotes" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Notas Adicionales (Opcional)</label>
+        <textarea id="incidentNotes" rows="3"
+                  [value]="notes()"
+                  (input)="notes.set($any($event.target).value)"
+                  placeholder="Añadir detalles sobre la acción tomada o el contexto..."
+                  class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md p-2 text-sm focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none resize-none"></textarea>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="flex justify-end items-center p-4 bg-slate-100 dark:bg-slate-800/50 rounded-b-2xl gap-2">
+      <button (click)="onClose()" class="px-4 py-2 text-sm font-bold text-slate-700 bg-slate-200 hover:bg-slate-300 dark:text-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 rounded-lg transition-colors">
+        Cancelar
+      </button>
+      <button (click)="onSave()" [disabled]="!title().trim()" class="px-4 py-2 text-sm font-bold text-white bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-400 dark:disabled:bg-slate-600 rounded-lg transition-colors">
+        Crear Incidente
+      </button>
+    </footer>
+  </div>
+</div>
