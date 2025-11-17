@@ -5,6 +5,7 @@ import { AccessibilityAnalysis } from '../models/accessibility-analysis.model';
 import { Bus } from '../components/dashboard/dashboard.component';
 import { Stop } from '../models/stop.model';
 import { AssistantMessage, AssistantMessageType } from '../models/ai-assistant.model';
+import { SimulationScenario, UserAction } from '../models/simulation.model';
 
 @Injectable({
   providedIn: 'root',
@@ -343,6 +344,90 @@ export class GeminiService {
       console.error('Error calling Gemini API for chat:', error);
       this.chat = null; // Reset chat on error
       throw new Error('Failed to get chat response due to an API error.');
+    }
+  }
+
+  async generateSimulationScenario(prompt: string): Promise<SimulationScenario> {
+    const schema = {
+      type: Type.OBJECT,
+      properties: {
+        title: { type: Type.STRING, description: 'Un título breve y descriptivo para el escenario.' },
+        description: { type: Type.STRING, description: 'Una descripción de 1-2 frases del escenario para el usuario.' },
+        events: {
+          type: Type.ARRAY,
+          description: 'Una matriz de eventos de simulación que ocurrirán a lo largo del tiempo.',
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              time: { type: Type.INTEGER, description: 'El tiempo en segundos desde el inicio de la simulación en que ocurre este evento.' },
+              busId: { type: Type.INTEGER, description: 'El ID del autobús afectado por el evento.' },
+              type: { type: Type.STRING, description: 'El tipo de evento. Debe ser "STATUS_CHANGE" o "PROXIMITY_ALERT".' },
+              payload: {
+                type: Type.OBJECT,
+                properties: {
+                  newStatus: { type: Type.STRING, description: 'Para STATUS_CHANGE, el nuevo estado del autobús (en-ruta, llegando, detenido, saliendo).' },
+                  distance: { type: Type.NUMBER, description: 'Para PROXIMITY_ALERT, la nueva distancia a la acera en cm.' }
+                }
+              }
+            }
+          }
+        }
+      },
+      required: ['title', 'description', 'events']
+    };
+
+    const systemInstruction = `Eres un generador de escenarios de entrenamiento para un simulador de despacho de autobuses. Tu tarea es crear un escenario realista y atractivo basado en la indicación del usuario. El escenario debe consistir en una secuencia cronológica de eventos. Genera al menos 5-10 eventos para crear un escenario interesante. Los eventos deben ser lógicos (por ejemplo, un autobús no puede pasar de 'en-ruta' a 'detenido' instantáneamente). Asegúrate de que los eventos de proximidad solo ocurran cuando el estado sea 'detenido'. Responde únicamente en el formato JSON solicitado.`;
+
+    try {
+      const response = await this.ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: { parts: [{ text: prompt }] },
+        config: {
+          systemInstruction,
+          responseMimeType: 'application/json',
+          responseSchema: schema,
+        },
+      });
+      const jsonText = response.text.trim();
+      return JSON.parse(jsonText);
+    } catch (error) {
+      console.error('Error calling Gemini API for scenario generation:', error);
+      throw new Error('Failed to generate simulation scenario due to an API error.');
+    }
+  }
+
+  async analyzeSimulationPerformance(scenario: SimulationScenario, actions: UserAction[]): Promise<string> {
+     const systemInstruction = `Eres un experto entrenador de despachadores de transporte. Tu tarea es analizar el rendimiento de un usuario durante un escenario de simulación. Se te proporcionará el escenario original y una lista cronológica de las acciones que tomó el usuario.
+
+    Tu análisis debe ser:
+    1.  **Constructivo:** Concéntrate en el aprendizaje.
+    2.  **Específico:** Menciona acciones concretas que fueron buenas y áreas de mejora.
+    3.  **Conciso:** Proporciona 2-3 puntos clave en formato de markdown (usando '*' para las viñetas).
+    4.  **En español.**
+
+    Evalúa la puntualidad, la idoneidad y la exhaustividad de las acciones del usuario en respuesta a los eventos del escenario. ¿Crearon un incidente para un evento crítico? ¿Utilizaron las herramientas disponibles?`;
+
+    const prompt = `
+      **Escenario:**
+      Título: ${scenario.title}
+      Descripción: ${scenario.description}
+      Eventos Clave: ${JSON.stringify(scenario.events.filter(e => e.type === 'PROXIMITY_ALERT'))}
+
+      **Registro de Acciones del Usuario:**
+      ${JSON.stringify(actions)}
+
+      Por favor, proporciona tu análisis de rendimiento.`;
+      
+    try {
+      const response = await this.ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+        config: { systemInstruction },
+      });
+      return response.text;
+    } catch (error) {
+        console.error("Error calling Gemini API for performance analysis:", error);
+        throw new Error("Failed to analyze simulation performance due to an API error.");
     }
   }
 }

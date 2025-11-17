@@ -1,13 +1,16 @@
 
+
 import { ChangeDetectionStrategy, Component, effect, inject } from '@angular/core';
 import { DashboardComponent } from './components/dashboard/dashboard.component';
 import { SettingsService } from './services/settings.service';
 import { ReportsModalComponent } from './components/reports-modal/reports-modal.component';
+import { ScenarioSetupModalComponent } from './components/scenario-setup-modal/scenario-setup-modal.component';
+import { SimulationReportModalComponent } from './components/simulation-report-modal/simulation-report-modal.component';
 
 @Component({
   selector: 'app-root',
   template: `<app-dashboard />`,
-  imports: [DashboardComponent, ReportsModalComponent],
+  imports: [DashboardComponent, ReportsModalComponent, ScenarioSetupModalComponent, SimulationReportModalComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AppComponent {

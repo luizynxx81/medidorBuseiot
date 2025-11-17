@@ -1,5 +1,6 @@
 
 
+
 import { Component, signal, computed, OnInit, OnDestroy, ChangeDetectionStrategy, WritableSignal, inject, effect } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { GeminiService } from '../../services/gemini.service';
@@ -17,6 +18,10 @@ import { Incident, IncidentStatus } from '../../models/incident.model';
 import { IncidentFormModalComponent } from '../incident-form-modal/incident-form-modal.component';
 import { IncidentTrackerModalComponent } from '../incident-tracker-modal/incident-tracker-modal.component';
 import { AssistantMessage } from '../../models/ai-assistant.model';
+import { ScenarioSetupModalComponent } from '../scenario-setup-modal/scenario-setup-modal.component';
+import { SimulationReportModalComponent } from '../simulation-report-modal/simulation-report-modal.component';
+import { SimulationControlComponent } from '../simulation-control/simulation-control.component';
+import { SimulationScenario, UserAction, SimulationReport } from '../../models/simulation.model';
 
 // --- DATA STRUCTURES ---
 type BusStatus = 'en-ruta' | 'llegando' | 'detenido' | 'saliendo';
@@ -41,7 +46,7 @@ export interface Bus {
 
 @Component({
   selector: 'app-dashboard',
-  imports: [CommonModule, DatePipe, FeedbackAnalysisComponent, AccessibilityAnalyzerComponent, SettingsModalComponent, ReportsModalComponent, AiAssistantComponent, ChatAssistantComponent, IncidentFormModalComponent, IncidentTrackerModalComponent],
+  imports: [CommonModule, DatePipe, FeedbackAnalysisComponent, AccessibilityAnalyzerComponent, SettingsModalComponent, ReportsModalComponent, AiAssistantComponent, ChatAssistantComponent, IncidentFormModalComponent, IncidentTrackerModalComponent, ScenarioSetupModalComponent, SimulationReportModalComponent, SimulationControlComponent],
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -52,7 +57,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
   settingsService = inject(SettingsService);
 
   // --- CONFIGURATION ---
-  readonly SIMULATION_INTERVAL_MS = 2000;
+  readonly REALTIME_SIMULATION_INTERVAL_MS = 2000;
+  readonly SCENARIO_SIMULATION_INTERVAL_MS = 1500;
   readonly MAX_IMAGE_SIZE_MB = 4;
   readonly MAX_LOG_ENTRIES = 5;
 
@@ -71,6 +77,18 @@ export class DashboardComponent implements OnInit, OnDestroy {
   
   private alertAudio: HTMLAudioElement;
   private isAudioUnlocked = signal(false);
+
+  // Simulation State
+  isSimulationRunning = signal(false);
+  simulationScenario = signal<SimulationScenario | null>(null);
+  simulationUserActions = signal<UserAction[]>([]);
+  simulationTime = signal(0);
+  isScenarioSetupOpen = signal(false);
+  isSimulationReportOpen = signal(false);
+  simulationReport = signal<SimulationReport | null>(null);
+  private simulationInterval: any;
+  private scenarioEventIndex = 0;
+
 
   // Feedback form state
   feedbackType = signal<'felicitacion' | 'sugerencia' | 'denuncia'>('sugerencia');
@@ -121,8 +139,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
       case 'saliendo': return 'Saliendo';
     }
   }
-
-  private simulationInterval: any;
   
   constructor() {
     this.alertAudio = new Audio(alertSound);
@@ -145,7 +161,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.initializeBuses();
     this.initializeStops();
     this.initializeIncidents();
-    this.startSimulation();
+    this.startRealtimeSimulation();
   }
 
   ngOnDestroy(): void {
@@ -184,11 +200,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.incidents.set([]);
   }
 
-  startSimulation(): void {
+  startRealtimeSimulation(): void {
     if (this.simulationInterval) return;
     this.simulationInterval = setInterval(() => {
-      this.updateBusStates();
-    }, this.SIMULATION_INTERVAL_MS);
+      this.updateBusStatesRandomly();
+    }, this.REALTIME_SIMULATION_INTERVAL_MS);
   }
 
   stopSimulation(): void {
@@ -198,7 +214,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     }
   }
 
-  updateBusStates(): void {
+  updateBusStatesRandomly(): void {
     this.buses().forEach(bus => {
       bus.stateTimer.update(t => t - 1);
 
@@ -263,15 +279,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.isMenuOpen.set(false);
   }
 
-  // New method to unlock audio on first user interaction
   unlockAudio(): void {
     if (this.isAudioUnlocked()) return;
 
     this.isAudioUnlocked.set(true);
     console.log("User interaction detected. Audio playback now enabled.");
 
-    // After unlocking, immediately check if there's an active alert that needs to be played.
-    // This handles the case where a danger event occurs before the first click.
     const soundEnabled = this.settingsService.settings().soundAlertsEnabled;
     if (soundEnabled && this.safetyStatus() === 'danger') {
         this.alertAudio.play().catch(e => console.error("Error playing sound:", e));
@@ -301,7 +314,89 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.isHelpModalOpen.set(false);
   }
   
-  // --- Incident Management ---
+  // --- Simulation Workflow ---
+  openScenarioSetup(): void {
+    this.isScenarioSetupOpen.set(true);
+    this.closeMenu();
+  }
+  
+  closeScenarioSetup(): void {
+    this.isScenarioSetupOpen.set(false);
+  }
+
+  startScenario(scenario: SimulationScenario): void {
+    this.stopSimulation(); // Stop random simulation
+    this.initializeBuses(); // Reset bus states
+    this.initializeIncidents();
+    this.simulationUserActions.set([]);
+    this.scenarioEventIndex = 0;
+    this.simulationTime.set(0);
+
+    this.simulationScenario.set(scenario);
+    this.isSimulationRunning.set(true);
+    this.closeScenarioSetup();
+
+    this.simulationInterval = setInterval(() => {
+      this.runScenarioStep();
+    }, this.SCENARIO_SIMULATION_INTERVAL_MS);
+  }
+  
+  runScenarioStep(): void {
+    this.simulationTime.update(t => t + 1);
+    const scenario = this.simulationScenario();
+    if (!scenario) return;
+
+    const upcomingEvent = scenario.events[this.scenarioEventIndex];
+    if (upcomingEvent && this.simulationTime() >= upcomingEvent.time) {
+      const bus = this.buses().find(b => b.id === upcomingEvent.busId);
+      if (bus) {
+        if (upcomingEvent.type === 'STATUS_CHANGE' && upcomingEvent.payload.newStatus) {
+            bus.status.set(upcomingEvent.payload.newStatus as BusStatus);
+        } else if (upcomingEvent.type === 'PROXIMITY_ALERT' && upcomingEvent.payload.distance) {
+            bus.curbDistanceCm.set(upcomingEvent.payload.distance);
+            bus.status.set('detenido'); // Proximity alerts imply the bus is stopped
+            this.logProximityEvent(bus);
+        }
+      }
+      this.scenarioEventIndex++;
+    }
+
+    // End simulation if all events are processed
+    if (this.scenarioEventIndex >= scenario.events.length) {
+      this.stopSimulationAndShowReport();
+    }
+  }
+
+  async stopSimulationAndShowReport(): Promise<void> {
+    this.stopSimulation();
+    this.simulationReport.set({
+      scenario: this.simulationScenario()!,
+      actions: this.simulationUserActions(),
+      aiAnalysis: '', // To be filled by Gemini
+    });
+    this.isSimulationReportOpen.set(true);
+    // Restore live data after a short delay
+    setTimeout(() => {
+        this.isSimulationRunning.set(false);
+        this.initializeBuses();
+        this.startRealtimeSimulation();
+    }, 1000);
+  }
+
+  closeSimulationReport(): void {
+    this.isSimulationReportOpen.set(false);
+    this.simulationReport.set(null);
+  }
+
+  captureUserAction(action: Omit<UserAction, 'timestamp'>): void {
+    if (!this.isSimulationRunning()) return;
+    this.simulationUserActions.update(actions => [
+      ...actions,
+      { ...action, timestamp: this.simulationTime() }
+    ]);
+  }
+
+  // --- Incident Management (Updated for Simulation) ---
   openIncidentTracker(): void {
     this.isIncidentTrackerOpen.set(true);
     this.closeMenu();
@@ -314,11 +409,19 @@ export class DashboardComponent implements OnInit, OnDestroy {
   openIncidentForm(eventMessage: string, bus: Bus): void {
     this.incidentToCreate.set({ eventMessage, bus });
     this.isIncidentFormOpen.set(true);
+    this.captureUserAction({
+      type: 'CREATE_INCIDENT_ATTEMPT',
+      details: `User opened incident form for event: "${eventMessage}" on bus ${bus.name}.`
+    });
   }
   
   openIncidentFormFromAI(event: { message: AssistantMessage, bus: Bus }): void {
     this.incidentToCreate.set({ eventMessage: event.message.message, bus: event.bus });
     this.isIncidentFormOpen.set(true);
+     this.captureUserAction({
+      type: 'CREATE_INCIDENT_ATTEMPT',
+      details: `User opened incident form from AI alert: "${event.message.message}" on bus ${event.bus.name}.`
+    });
   }
 
   closeIncidentForm(): void {
@@ -327,12 +430,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
   
   handleIncidentCreation(incidentData: Omit<Incident, 'id' | 'createdAt' | 'bus'> & {bus: Bus, notes?: string}): void {
+    this.captureUserAction({
+      type: 'INCIDENT_CREATED',
+      details: `Incident "${incidentData.title}" created with priority ${incidentData.priority}.`
+    });
     const newIncident: Incident = {
-      id: Date.now(), // Simple unique ID for this session
+      id: Date.now(),
       createdAt: new Date(),
       status: 'Abierto',
       ...incidentData,
-      bus: { // Store a snapshot of bus info, not the reactive signal
+      bus: {
         id: incidentData.bus.id,
         name: incidentData.bus.name,
         driver: incidentData.bus.driver
@@ -343,13 +450,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
   
   handleIncidentStatusChange(update: { incidentId: number; newStatus: IncidentStatus }): void {
+    this.captureUserAction({
+      type: 'INCIDENT_STATUS_CHANGE',
+      details: `Status of incident ID ${update.incidentId} changed to ${update.newStatus}.`
+    });
     this.incidents.update(list =>
       list.map(inc =>
         inc.id === update.incidentId ? { ...inc, status: update.newStatus } : inc
       )
     );
   }
-
 
   handleSettingsSave(newSettings: AppSettings): void {
     this.settingsService.saveSettings(newSettings);
@@ -408,7 +518,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.analysisError.set(null);
 
     if (!this.settingsService.settings().feedbackAnalysisEnabled) {
-      // Simulate a quick submission without AI analysis
       setTimeout(() => {
         this.feedbackMessage.set('');
         this.feedbackType.set('sugerencia');
