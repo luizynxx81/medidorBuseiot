@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>StreetSafe - Monitor de Proximidad</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    // Configure Tailwind to use the 'class' strategy for dark mode.
+    // This is crucial for our Angular app which adds/removes the .dark class on the <html> element.
+    tailwind.config = {
+      darkMode: 'class',
+    }
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
