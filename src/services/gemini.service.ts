@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { GoogleGenAI, Type } from '@google/genai';
 import { FeedbackAnalysis } from '../models/feedback-analysis.model';
+import { AccessibilityAnalysis } from '../models/accessibility-analysis.model';
 
 @Injectable({
   providedIn: 'root',
@@ -10,10 +11,77 @@ export class GeminiService {
 
   constructor() {
     // IMPORTANT: This relies on the API key being available as an environment variable.
-    if (!process.env.API_KEY) {
-      throw new Error("API_KEY environment variable not set");
-    }
+    // The check for `process.env.API_KEY` was removed because it causes a
+    // `ReferenceError` in the browser, where `process` is not defined. The execution
+    // environment is expected to substitute `process.env.API_KEY` with a valid key.
     this.ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  }
+
+  async analyzeStopAccessibility(imageBase64: string): Promise<AccessibilityAnalysis> {
+    const schema = {
+      type: Type.OBJECT,
+      properties: {
+        summary: {
+          type: Type.STRING,
+          description: 'Un resumen de una frase sobre la condición general de accesibilidad de la parada de autobús.',
+        },
+        hazards: {
+          type: Type.ARRAY,
+          description: 'Una lista de los peligros específicos de accesibilidad o seguridad identificados.',
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              description: {
+                type: Type.STRING,
+                description: 'Una descripción clara y concisa del peligro.',
+              },
+              severity: {
+                type: Type.STRING,
+                description: 'La gravedad del peligro. Debe ser "Bajo", "Medio", o "Alto".',
+              }
+            },
+            required: ['description', 'severity']
+          }
+        }
+      },
+      required: ['summary', 'hazards']
+    };
+
+    const prompt = `Eres un experto en accesibilidad urbana y seguridad para un sistema de transporte público. Analiza la siguiente imagen de una parada de autobús e identifica CUALQUIER peligro potencial para la accesibilidad o la seguridad. Concéntrate en problemas para usuarios de sillas de ruedas, personas con discapacidad visual o cualquier pasajero. Los problemas pueden incluir: obstrucciones, superficies irregulares, falta de rampas, mala iluminación, basura, falta de señalización, etc. Proporciona un resumen general y una lista de los peligros específicos encontrados. Responde únicamente en el formato JSON solicitado.`;
+
+    try {
+      const response = await this.ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: {
+          parts: [
+            { text: prompt },
+            {
+              inlineData: {
+                data: imageBase64,
+                mimeType: 'image/jpeg'
+              }
+            }
+          ]
+        },
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: schema,
+        },
+      });
+
+      const jsonText = response.text.trim();
+      const analysisResult = JSON.parse(jsonText);
+
+      if (!analysisResult.summary || typeof analysisResult.hazards === 'undefined') {
+        throw new Error('Invalid accessibility analysis result structure from API');
+      }
+
+      return analysisResult as AccessibilityAnalysis;
+
+    } catch (error) {
+      console.error("Error calling Gemini API for accessibility analysis:", error);
+      throw new Error("Failed to analyze stop environment due to an API error.");
+    }
   }
 
   async analyzeFeedback(

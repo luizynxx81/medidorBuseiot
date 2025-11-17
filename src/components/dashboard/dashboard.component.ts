@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { GeminiService } from '../../services/gemini.service';
 import { FeedbackAnalysis } from '../../models/feedback-analysis.model';
 import { FeedbackAnalysisComponent } from '../feedback-analysis/feedback-analysis.component';
+import { AccessibilityAnalyzerComponent } from '../accessibility-analyzer/accessibility-analyzer.component';
 
 // --- DATA STRUCTURE FOR A BUS ---
 type BusStatus = 'en-ruta' | 'llegando' | 'detenido' | 'saliendo';
@@ -17,7 +18,7 @@ interface Bus {
 
 @Component({
   selector: 'app-dashboard',
-  imports: [CommonModule, FeedbackAnalysisComponent],
+  imports: [CommonModule, FeedbackAnalysisComponent, AccessibilityAnalyzerComponent],
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -33,6 +34,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   // --- STATE SIGNALS ---
   buses = signal<Bus[]>([]);
   selectedBus = signal<Bus | null>(null);
+  isMenuOpen = signal(false);
 
   // Feedback form state
   feedbackType = signal<'felicitacion' | 'sugerencia' | 'denuncia'>('sugerencia');
@@ -174,6 +176,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
   
   selectBus(bus: Bus): void {
     this.selectedBus.set(bus);
+  }
+
+  toggleMenu(): void {
+    this.isMenuOpen.update(v => !v);
+  }
+
+  closeMenu(): void {
+    this.isMenuOpen.set(false);
   }
   
   handleFeedbackInput(event: Event): void {
