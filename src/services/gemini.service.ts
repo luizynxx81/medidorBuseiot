@@ -12,22 +12,36 @@ import { Incident, IncidentPriority } from '../models/incident.model';
   providedIn: 'root',
 })
 export class GeminiService {
-  private ai: GoogleGenAI;
+  private ai: GoogleGenAI | null = null;
   private chat: Chat | null = null;
 
   constructor() {
-    const apiKey = (process.env as any).API_KEY || '';
+    // Safely check for the API key in a browser-compatible way.
+    const apiKey = (typeof process !== 'undefined' && process.env && process.env.API_KEY) ? process.env.API_KEY : undefined;
 
-    if (!apiKey) {
+    if (apiKey) {
+      // Only initialize the AI service if we have a key.
+      // This prevents the @google/genai library from trying to find process.env itself.
+      this.ai = new GoogleGenAI({ apiKey });
+    } else {
       console.error(
         'API_KEY environment variable not set. ' +
         'The app will continue to run, but Gemini features will not work.'
       );
     }
-    this.ai = new GoogleGenAI({ apiKey });
+  }
+
+  /**
+   * Helper function to return a rejected promise when the service is not configured.
+   * This allows for graceful failure in components that call the service.
+   */
+  private getNotConfiguredError(): Promise<any> {
+    return Promise.reject(new Error("Gemini Service is not configured. API_KEY is missing."));
   }
 
   async analyzeStopAccessibility(imageBase64: string): Promise<AccessibilityAnalysis> {
+    if (!this.ai) return this.getNotConfiguredError();
+
     const schema = {
       type: Type.OBJECT,
       properties: {
@@ -99,6 +113,8 @@ export class GeminiService {
     type: string,
     image?: { base64: string, mimeType: string }
   ): Promise<FeedbackAnalysis> {
+    if (!this.ai) return this.getNotConfiguredError();
+
     const schema = {
       type: Type.OBJECT,
       properties: {
@@ -178,6 +194,7 @@ export class GeminiService {
     stops: Stop[],
     previousMessages: AssistantMessage[]
   ): Promise<AssistantMessage | null> {
+    if (!this.ai) return Promise.resolve(null);
 
     // Sanitize data for the prompt to keep it concise
     const fleetState = buses.map(bus => ({
@@ -290,6 +307,8 @@ export class GeminiService {
   }
 
   async generateStopImprovementImage(stopName: string, issues: string[]): Promise<string> {
+    if (!this.ai) return this.getNotConfiguredError();
+
     const issuesString = issues.join(', ');
     const prompt = `Create a photorealistic, high-quality image of a modern, clean, and accessible public bus stop named "${stopName}". The scene should be bright and welcoming. The bus stop has been renovated to fix the following issues: ${issuesString}. Show the improved state, for example, with clear pathways, proper lighting, no trash, and repaired surfaces.`;
 
@@ -317,6 +336,8 @@ export class GeminiService {
     buses: Bus[],
     stops: Stop[]
   ): Promise<string> {
+    if (!this.ai) return this.getNotConfiguredError();
+
     if (!this.chat) {
       this.chat = this.ai.chats.create({
         model: 'gemini-2.5-flash',
@@ -359,6 +380,8 @@ export class GeminiService {
   }
 
   async generateSimulationScenario(prompt: string): Promise<SimulationScenario> {
+    if (!this.ai) return this.getNotConfiguredError();
+
     const schema = {
       type: Type.OBJECT,
       properties: {
@@ -408,6 +431,8 @@ export class GeminiService {
   }
 
   async analyzeSimulationPerformance(scenario: SimulationScenario, actions: UserAction[]): Promise<string> {
+    if (!this.ai) return this.getNotConfiguredError();
+
      const systemInstruction = `Eres un experto entrenador de despachadores de transporte. Tu tarea es analizar el rendimiento de un usuario durante un escenario de simulación. Se te proporcionará el escenario original y una lista cronológica de las acciones que tomó el usuario.
 
     Tu análisis debe ser:
@@ -447,6 +472,8 @@ export class GeminiService {
     stops: Stop[],
     incidents: Incident[]
   ): Promise<Record<string, 'Bajo' | 'Medio' | 'Alto'>> {
+    if (!this.ai) return this.getNotConfiguredError();
+
     const schema = {
       type: Type.OBJECT,
       properties: {
