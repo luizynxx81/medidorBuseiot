@@ -1,12 +1,18 @@
-import { Component, signal, OnInit, OnDestroy, ChangeDetectionStrategy, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, signal, OnInit, OnDestroy, ChangeDetectionStrategy, inject, computed } from '@angular/core';
+import { CommonModule, DatePipe } from '@angular/common';
 import { SupabaseService, Measurement } from './services/supabase.service';
 import { RealtimeChannel } from '@supabase/supabase-js';
+
+export type MeasurementStatus = 'safe' | 'caution' | 'danger';
+
+export interface DisplayMeasurement extends Measurement {
+  status: MeasurementStatus;
+}
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, DatePipe],
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -14,28 +20,56 @@ import { RealtimeChannel } from '@supabase/supabase-js';
 export class AppComponent implements OnInit, OnDestroy {
   private supabaseService = inject(SupabaseService);
 
-  latestMeasurement = signal<Measurement | null>(null);
-  history = signal<Measurement[]>([]);
+  latestMeasurement = signal<DisplayMeasurement | null>(null);
+  history = signal<DisplayMeasurement[]>([]);
   error = signal<string | null>(null);
 
   private channel: RealtimeChannel | undefined;
-  readonly DANGER_THRESHOLD_CM = 30;
+
+  // --- THRESHOLDS ---
+  readonly CAUTION_THRESHOLD_CM = 15;
+  readonly DANGER_THRESHOLD_CM = 25;
+
+  statusInfo = computed(() => {
+    const measurement = this.latestMeasurement();
+    if (!measurement) {
+      return { status: '', text: 'Esperando datos...', isDanger: false, isCaution: false, isSafe: false };
+    }
+    const distance = measurement.datos_sensor.distancia_cm;
+    if (distance > this.DANGER_THRESHOLD_CM) {
+      return { status: 'danger', text: 'Peligro', isDanger: true, isCaution: false, isSafe: false };
+    }
+    if (distance > this.CAUTION_THRESHOLD_CM) {
+      return { status: 'caution', text: 'Precaución', isDanger: false, isCaution: true, isSafe: false };
+    }
+    return { status: 'safe', text: 'Distancia Segura', isDanger: false, isCaution: false, isSafe: true };
+  });
 
   async ngOnInit(): Promise<void> {
     try {
       const { latest, history } = await this.supabaseService.getInitialData();
-      this.latestMeasurement.set(latest);
-      this.history.set(history);
+      
+      this.latestMeasurement.set(latest ? this.addStatusToMeasurement(latest) : null);
+      this.history.set(history.map(this.addStatusToMeasurement.bind(this)));
 
       this.channel = this.supabaseService.listenToChanges((newMeasurement) => {
-        this.latestMeasurement.set(newMeasurement);
+        const measurementWithStatus = this.addStatusToMeasurement(newMeasurement);
+        this.latestMeasurement.set(measurementWithStatus);
         this.history.update(currentHistory => 
-            [newMeasurement, ...currentHistory].slice(0, 10)
+            [measurementWithStatus, ...currentHistory].slice(0, 10)
         );
       });
 
     } catch (err) {
-      this.error.set('No se pudo conectar con la base de datos. Verifique las credenciales y la conexión.');
+      const typedError = err as { message?: string };
+      let errorMessage = 'No se pudo conectar con la base de datos.';
+      if (typedError.message) {
+        errorMessage = `Error al obtener datos: ${typedError.message}`;
+        if (typedError.message.includes('security policies')) {
+          errorMessage += '\nSugerencia: Revisa que Row Level Security (RLS) esté habilitado en Supabase y que exista una política que permita la lectura (`SELECT`) para usuarios anónimos.';
+        }
+      }
+      this.error.set(errorMessage);
       console.error(err);
     }
   }
@@ -44,5 +78,19 @@ export class AppComponent implements OnInit, OnDestroy {
     if (this.channel) {
       this.supabaseService.removeChannel(this.channel);
     }
+  }
+
+  private addStatusToMeasurement(measurement: Measurement): DisplayMeasurement {
+    const distance = measurement.datos_sensor.distancia_cm;
+    let status: MeasurementStatus;
+
+    if (distance > this.DANGER_THRESHOLD_CM) {
+      status = 'danger';
+    } else if (distance > this.CAUTION_THRESHOLD_CM) {
+      status = 'caution';
+    } else {
+      status = 'safe';
+    }
+    return { ...measurement, status };
   }
 }

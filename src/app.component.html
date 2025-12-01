@@ -9,8 +9,8 @@
     </header>
 
     @if (error()) {
-      <div class="bg-red-900 border border-red-500 text-red-300 p-4 rounded-lg text-center">
-        <p class="font-bold">Error de Conexión</p>
+      <div class="bg-red-900 border border-red-500 text-red-300 p-4 rounded-lg text-left whitespace-pre-wrap font-mono">
+        <p class="font-bold mb-2">Error de Conexión</p>
         <p>{{ error() }}</p>
       </div>
     } @else {
@@ -18,27 +18,46 @@
       <section class="mb-10">
         <h2 class="text-lg font-semibold text-slate-300 mb-3">Última Medición</h2>
         @if (latestMeasurement(); as measurement) {
-          @let isDanger = measurement.datos_sensor.distancia_cm < DANGER_THRESHOLD_CM;
+          @let status = statusInfo();
           <div 
             class="p-8 rounded-2xl border transition-all duration-300"
-            [class.bg-red-500/20]="isDanger"
-            [class.border-red-500]="isDanger"
-            [class.bg-slate-800/50]="!isDanger"
-            [class.border-slate-700]="!isDanger">
+            [class.bg-red-500/20]="status.isDanger"
+            [class.border-red-500]="status.isDanger"
+            [class.bg-yellow-500/20]="status.isCaution"
+            [class.border-yellow-500]="status.isCaution"
+            [class.bg-green-500/20]="status.isSafe"
+            [class.border-green-500]="status.isSafe"
+            [class.bg-slate-800/50]="!measurement"
+            [class.border-slate-700]="!measurement">
             <div class="text-center">
               <p class="text-sm text-slate-400">{{ measurement.device_id }}</p>
-              <p 
-                class="text-8xl font-black tracking-tighter my-2"
-                [class.text-red-400]="isDanger"
-                [class.text-white]="!isDanger">
-                {{ measurement.datos_sensor.distancia_cm }}
+              
+              <div class="flex items-center justify-center gap-2">
+                 <p 
+                    class="text-8xl font-black tracking-tighter my-2"
+                    [class.text-red-400]="status.isDanger"
+                    [class.text-yellow-400]="status.isCaution"
+                    [class.text-green-400]="status.isSafe"
+                    [class.text-white]="!measurement">
+                    {{ measurement.datos_sensor.distancia_cm }}
+                  </p>
+                   <p 
+                    class="text-2xl font-bold"
+                    [class.text-red-500]="status.isDanger"
+                    [class.text-yellow-500]="status.isCaution"
+                    [class.text-green-500]="status.isSafe"
+                    [class.text-slate-500]="!measurement">
+                    cm
+                  </p>
+              </div>
+
+              <p class="text-sm font-bold tracking-wider uppercase"
+                [class.text-red-400]="status.isDanger"
+                [class.text-yellow-400]="status.isCaution"
+                [class.text-green-400]="status.isSafe">
+                {{ status.text }}
               </p>
-              <p 
-                class="text-2xl font-bold -mt-4"
-                [class.text-red-500]="isDanger"
-                [class.text-slate-500]="!isDanger">
-                cm
-              </p>
+
               <p class="text-xs text-slate-500 mt-4">{{ measurement.created_at | date:'medium' }}</p>
             </div>
           </div>
@@ -67,7 +86,9 @@
                   <td class="px-6 py-4 font-medium text-white">{{ item.device_id }}</td>
                   <td 
                     class="px-6 py-4 text-right font-bold"
-                    [class.text-red-400]="item.datos_sensor.distancia_cm < DANGER_THRESHOLD_CM">
+                    [class.text-red-400]="item.status === 'danger'"
+                    [class.text-yellow-400]="item.status === 'caution'"
+                    [class.text-green-400]="item.status === 'safe'">
                     {{ item.datos_sensor.distancia_cm }}
                   </td>
                   <td class="px-6 py-4 text-slate-400">{{ item.created_at | date:'short' }}</td>

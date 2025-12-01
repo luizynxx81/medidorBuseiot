@@ -1,4 +1,10 @@
-/* Añade un efecto de resplandor sutil para el estado de peligro */
+/* Añade efectos de resplandor sutiles para los diferentes estados */
 .bg-red-500\/20 {
   box-shadow: 0 0 30px rgba(239, 68, 68, 0.25);
+}
+.bg-yellow-500\/20 {
+  box-shadow: 0 0 30px rgba(234, 179, 8, 0.25);
+}
+.bg-green-500\/20 {
+  box-shadow: 0 0 30px rgba(34, 197, 94, 0.2);
 }
