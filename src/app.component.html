@@ -102,11 +102,19 @@
                 {{ status.text }}
               </p>
 
+              <!-- Bus Visualization -->
+              <div class="bus-visualization-container mt-6">
+                <div class="road">
+                  <div class="bus" [style.left.%]="calculateBusPosition(measurement.datos_sensor.distancia_cm)"></div>
+                </div>
+                <div class="curb"></div>
+              </div>
+
               <p class="text-xs text-slate-500 mt-4">{{ measurement.created_at | date:'medium' }}</p>
             </div>
           </div>
         } @else {
-          <div class="p-8 rounded-2xl border border-slate-700 bg-slate-800/50 text-center animate-pulse min-h-[244px] flex items-center justify-center">
+          <div class="p-8 rounded-2xl border border-slate-700 bg-slate-800/50 text-center animate-pulse min-h-[300px] flex items-center justify-center">
             <p class="text-slate-400">Esperando datos...</p>
           </div>
         }

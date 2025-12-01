@@ -11,6 +11,8 @@ export interface DisplayMeasurement extends Measurement {
   relativeTime: string;
 }
 
+const MAX_VISUAL_DISTANCE_CM = 50; // The max distance (e.g., 50cm) that corresponds to the leftmost position in the visualizer.
+
 @Component({
   selector: 'app-root',
   standalone: true,
@@ -134,6 +136,16 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
     if (this.pollingInterval) {
       clearInterval(this.pollingInterval);
     }
+  }
+  
+  calculateBusPosition(distanceCm: number): number {
+    // This function maps a distance in cm to a percentage for the 'left' CSS property.
+    // 0cm distance -> bus is close to the curb (right side). Let's say 80% left.
+    // MAX_VISUAL_DISTANCE_CM distance -> bus is far from the curb (left side). Let's say 0% left.
+    const clampedDistance = Math.min(distanceCm, MAX_VISUAL_DISTANCE_CM);
+    const percentage = 1 - (clampedDistance / MAX_VISUAL_DISTANCE_CM);
+    // The bus visual area is between 0% and 80% (leaving space for the curb)
+    return percentage * 80;
   }
 
   private addStatusToMeasurement(measurement: Measurement): DisplayMeasurement {
