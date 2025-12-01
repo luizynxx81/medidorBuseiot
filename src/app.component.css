@@ -8,3 +8,41 @@
 .bg-green-500\/20 {
   box-shadow: 0 0 30px rgba(34, 197, 94, 0.2);
 }
+
+/* D3 Chart Styles */
+:host ::ng-deep .chart-container svg {
+  font-family: inherit;
+}
+
+:host ::ng-deep .chart-container .tick line {
+  stroke: #475569; /* slate-600 */
+}
+
+:host ::ng-deep .chart-container .tick text {
+  fill: #94a3b8; /* slate-400 */
+  font-size: 12px;
+}
+
+:host ::ng-deep .chart-container .domain {
+  stroke: #475569; /* slate-600 */
+}
+
+/* New row animation */
+@keyframes fadeInHighlight {
+  from {
+    background-color: rgba(34, 211, 238, 0.2);
+    opacity: 0;
+  }
+  50% {
+    background-color: rgba(34, 211, 238, 0.1);
+    opacity: 1;
+  }
+  to {
+    background-color: transparent;
+    opacity: 1;
+  }
+}
+
+.new-row-animation {
+  animation: fadeInHighlight 1.5s ease-out forwards;
+}

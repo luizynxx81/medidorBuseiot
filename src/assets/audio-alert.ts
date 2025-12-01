@@ -1,4 +1,3 @@
-
 // A simple, non-intrusive audio alert sound.
 // This is a base64 encoded data URI for a short sine wave beep.
 // Using a data URI avoids needing to host and fetch a separate audio file.
