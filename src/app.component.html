@@ -8,14 +8,59 @@
       <p class="text-slate-400 mt-2">Visualizador en tiempo real de datos de Supabase</p>
     </header>
 
+    <!-- Status and Stats Panel -->
+    <section class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+      <!-- Connection Status -->
+      <div class="flex items-center bg-slate-800/50 border border-slate-700 rounded-lg p-4">
+        @if (!error()) {
+          <div class="flex items-center">
+            <span class="relative flex h-3 w-3 mr-3">
+              <span class="animate-pulse-green absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+            </span>
+            <div>
+              <p class="font-semibold text-slate-200">Conectado</p>
+              <p class="text-xs text-slate-400">Recibiendo datos en tiempo real</p>
+            </div>
+          </div>
+        } @else {
+          <div class="flex items-center">
+             <span class="relative flex h-3 w-3 mr-3">
+              <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+            </span>
+            <div>
+              <p class="font-semibold text-red-400">Error de Conexión</p>
+              <p class="text-xs text-slate-400">No se pudieron obtener los datos</p>
+            </div>
+          </div>
+        }
+      </div>
+
+      <!-- Aggregated Stats -->
+      <div class="flex justify-around bg-slate-800/50 border border-slate-700 rounded-lg p-4">
+        <div class="text-center">
+          <p class="text-xs text-slate-400 uppercase tracking-wider">Distancia Máx. Hoy</p>
+          <p class="text-2xl font-bold text-slate-200">{{ maxDistanceToday() }} <span class="text-base font-normal text-slate-400">cm</span></p>
+        </div>
+         <div class="border-l border-slate-700"></div>
+        <div class="text-center">
+          <p class="text-xs text-slate-400 uppercase tracking-wider">Alertas de Peligro Hoy</p>
+          <p class="text-2xl font-bold text-slate-200">{{ dangerAlertsToday() }}</p>
+        </div>
+      </div>
+    </section>
+
     @if (error()) {
-      <div class="bg-red-900 border border-red-500 text-red-300 p-4 rounded-lg text-left whitespace-pre-wrap font-mono">
-        <p class="font-bold mb-2">Error de Conexión</p>
+      <div class="bg-red-900 border border-red-500 text-red-300 p-4 rounded-lg text-left whitespace-pre-wrap font-mono mb-8">
+        <p class="font-bold mb-2">Detalles del Error</p>
         <p>{{ error() }}</p>
       </div>
-    } @else {
+    }
+
+    <!-- Main Content -->
+    <div class="grid grid-cols-1 gap-10">
       <!-- Latest Measurement Card -->
-      <section class="mb-10">
+      <section>
         @if (latestMeasurement(); as measurement) {
           @let status = statusInfo();
           <div 
@@ -68,7 +113,7 @@
       </section>
 
       <!-- History Chart -->
-      <section class="mb-10">
+      <section>
         <h2 class="text-lg font-semibold text-slate-300 mb-3">Gráfico Histórico</h2>
         <div #chart class="w-full bg-slate-800/50 border border-slate-700 rounded-lg p-2 chart-container">
           @if(history().length === 0) {
@@ -115,6 +160,6 @@
           </table>
         </div>
       </section>
-    }
+    </div>
   </div>
 </main>

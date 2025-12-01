@@ -46,3 +46,14 @@
 .new-row-animation {
   animation: fadeInHighlight 1.5s ease-out forwards;
 }
+
+/* New Status Indicator Animation */
+@keyframes pulse-green {
+  50% {
+    opacity: .75;
+  }
+}
+
+.animate-pulse-green {
+  animation: pulse-green 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}

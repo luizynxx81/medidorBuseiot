@@ -35,6 +35,34 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
   readonly CAUTION_THRESHOLD_CM = 15;
   readonly DANGER_THRESHOLD_CM = 25;
 
+  // --- STATISTICS ---
+  maxDistanceToday = computed(() => {
+    const today = new Date();
+    const todayHistory = this.history().filter(m => {
+      const measurementDate = new Date(m.created_at);
+      return measurementDate.getDate() === today.getDate() &&
+             measurementDate.getMonth() === today.getMonth() &&
+             measurementDate.getFullYear() === today.getFullYear();
+    });
+
+    if (todayHistory.length === 0) {
+      return 0;
+    }
+
+    return Math.max(...todayHistory.map(m => m.datos_sensor.distancia_cm));
+  });
+
+  dangerAlertsToday = computed(() => {
+    const today = new Date();
+    return this.history().filter(m => {
+      const measurementDate = new Date(m.created_at);
+      return m.status === 'danger' &&
+             measurementDate.getDate() === today.getDate() &&
+             measurementDate.getMonth() === today.getMonth() &&
+             measurementDate.getFullYear() === today.getFullYear();
+    }).length;
+  });
+
   statusInfo = computed(() => {
     const measurement = this.latestMeasurement();
     if (!measurement) {
