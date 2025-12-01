@@ -1,29 +1,48 @@
-
-
-import { ChangeDetectionStrategy, Component, effect, inject } from '@angular/core';
-import { DashboardComponent } from './components/dashboard/dashboard.component';
-import { SettingsService } from './services/settings.service';
-import { ReportsModalComponent } from './components/reports-modal/reports-modal.component';
-import { ScenarioSetupModalComponent } from './components/scenario-setup-modal/scenario-setup-modal.component';
-import { SimulationReportModalComponent } from './components/simulation-report-modal/simulation-report-modal.component';
+import { Component, signal, OnInit, OnDestroy, ChangeDetectionStrategy, inject } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { SupabaseService, Measurement } from './services/supabase.service';
+import { RealtimeChannel } from '@supabase/supabase-js';
 
 @Component({
   selector: 'app-root',
-  template: `<app-dashboard />`,
-  imports: [DashboardComponent, ReportsModalComponent, ScenarioSetupModalComponent, SimulationReportModalComponent],
+  standalone: true,
+  imports: [CommonModule],
+  templateUrl: './app.component.html',
+  styleUrls: ['./app.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class AppComponent {
-  private settingsService = inject(SettingsService);
+export class AppComponent implements OnInit, OnDestroy {
+  private supabaseService = inject(SupabaseService);
 
-  constructor() {
-    effect(() => {
-      const theme = this.settingsService.settings().theme;
-      if (theme === 'dark') {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
-    });
+  latestMeasurement = signal<Measurement | null>(null);
+  history = signal<Measurement[]>([]);
+  error = signal<string | null>(null);
+
+  private channel: RealtimeChannel | undefined;
+  readonly DANGER_THRESHOLD_CM = 30;
+
+  async ngOnInit(): Promise<void> {
+    try {
+      const { latest, history } = await this.supabaseService.getInitialData();
+      this.latestMeasurement.set(latest);
+      this.history.set(history);
+
+      this.channel = this.supabaseService.listenToChanges((newMeasurement) => {
+        this.latestMeasurement.set(newMeasurement);
+        this.history.update(currentHistory => 
+            [newMeasurement, ...currentHistory].slice(0, 10)
+        );
+      });
+
+    } catch (err) {
+      this.error.set('No se pudo conectar con la base de datos. Verifique las credenciales y la conexión.');
+      console.error(err);
+    }
+  }
+
+  ngOnDestroy(): void {
+    if (this.channel) {
+      this.supabaseService.removeChannel(this.channel);
+    }
   }
 }

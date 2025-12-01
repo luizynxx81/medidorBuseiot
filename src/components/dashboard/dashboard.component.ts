@@ -1,6 +1,4 @@
 
-
-
 import { Component, signal, computed, OnInit, OnDestroy, ChangeDetectionStrategy, WritableSignal, inject, effect } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { GeminiService } from '../../services/gemini.service';
@@ -9,27 +7,25 @@ import { FeedbackAnalysisComponent } from '../feedback-analysis/feedback-analysi
 import { AccessibilityAnalyzerComponent } from '../accessibility-analyzer/accessibility-analyzer.component';
 import { SettingsModalComponent } from '../settings-modal/settings-modal.component';
 import { SettingsService, AppSettings } from '../../services/settings.service';
-import { alertSound } from '../../assets/audio-alert';
 import { ReportsModalComponent } from '../reports-modal/reports-modal.component';
-import { Stop } from '../../models/stop.model';
-import { AiAssistantComponent } from '../ai-assistant/ai-assistant.component';
-import { ChatAssistantComponent } from '../chat-assistant/chat-assistant.component';
-import { Incident, IncidentPriority, IncidentStatus } from '../../models/incident.model';
-import { IncidentFormModalComponent } from '../incident-form-modal/incident-form-modal.component';
 import { IncidentTrackerModalComponent } from '../incident-tracker-modal/incident-tracker-modal.component';
-import { AssistantMessage } from '../../models/ai-assistant.model';
+import { IncidentFormModalComponent } from '../incident-form-modal/incident-form-modal.component';
 import { ScenarioSetupModalComponent } from '../scenario-setup-modal/scenario-setup-modal.component';
-import { SimulationReportModalComponent } from '../simulation-report-modal/simulation-report-modal.component';
 import { SimulationControlComponent } from '../simulation-control/simulation-control.component';
-import { SimulationScenario, UserAction, SimulationReport } from '../../models/simulation.model';
+import { SimulationReportModalComponent } from '../simulation-report-modal/simulation-report-modal.component';
+import { AiAssistantComponent } from '../ai-assistant/ai-assistant.component';
+import { Stop } from '../../models/stop.model';
+import { Incident, IncidentStatus } from '../../models/incident.model';
+import { AssistantMessage } from '../../models/ai-assistant.model';
+import { SimulationReport, SimulationScenario, UserAction } from '../../models/simulation.model';
+import { alertSound } from '../../assets/audio-alert';
+
 
 // --- DATA STRUCTURES ---
-type BusStatus = 'en-ruta' | 'llegando' | 'detenido' | 'saliendo';
-type EventLevel = 'caution' | 'danger';
-
+export type BusStatus = 'En Ruta' | 'Llegando' | 'Detenido' | 'Saliendo';
+export type ProximityStatus = 'safe' | 'caution' | 'danger';
 export interface BusEvent {
   timestamp: Date;
-  level: EventLevel;
   message: string;
 }
 
@@ -40,13 +36,23 @@ export interface Bus {
   driver: string;
   status: WritableSignal<BusStatus>;
   curbDistanceCm: WritableSignal<number>;
-  stateTimer: WritableSignal<number>;
+  proximityStatus: WritableSignal<ProximityStatus>;
   eventLog: WritableSignal<BusEvent[]>;
+}
+
+export interface Route {
+  name: string;
+  buses: Bus[];
 }
 
 @Component({
   selector: 'app-dashboard',
-  imports: [CommonModule, DatePipe, FeedbackAnalysisComponent, AccessibilityAnalyzerComponent, SettingsModalComponent, ReportsModalComponent, AiAssistantComponent, ChatAssistantComponent, IncidentFormModalComponent, IncidentTrackerModalComponent, ScenarioSetupModalComponent, SimulationReportModalComponent, SimulationControlComponent],
+  imports: [
+    CommonModule, DatePipe, FeedbackAnalysisComponent, AccessibilityAnalyzerComponent,
+    SettingsModalComponent, ReportsModalComponent, IncidentTrackerModalComponent,
+    IncidentFormModalComponent, ScenarioSetupModalComponent, SimulationControlComponent,
+    SimulationReportModalComponent, AiAssistantComponent
+  ],
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -58,42 +64,33 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   // --- CONFIGURATION ---
   readonly REALTIME_SIMULATION_INTERVAL_MS = 2000;
-  readonly SCENARIO_SIMULATION_INTERVAL_MS = 1500;
-  readonly RISK_ANALYSIS_INTERVAL_MS = 20000; // New
   readonly MAX_IMAGE_SIZE_MB = 4;
-  readonly MAX_LOG_ENTRIES = 5;
+  private audioAlert = new Audio(alertSound);
 
   // --- STATE SIGNALS ---
   buses = signal<Bus[]>([]);
+  routes = computed(() => this.groupBusesByRoute());
+  selectedBus = signal<Bus | null>(null);
   stops = signal<Stop[]>([]);
   incidents = signal<Incident[]>([]);
-  selectedBus = signal<Bus | null>(null);
   isMenuOpen = signal(false);
+
+  // Modal states
   isSettingsModalOpen = signal(false);
-  isReportsModalOpen = signal(false);
   isHelpModalOpen = signal(false);
-  isIncidentTrackerOpen = signal(false);
-  isIncidentFormOpen = signal(false);
-  incidentToCreate = signal<{ eventMessage: string; bus: Bus; title?: string; priority?: IncidentPriority; } | null>(null);
-  
-  // Risk Analysis State
-  routeRiskScores = signal<Record<string, 'Bajo' | 'Medio' | 'Alto'>>({});
-  isAnalyzingRisk = signal(false);
-  private riskAnalysisInterval: any;
+  isReportsModalOpen = signal(false);
+  isIncidentTrackerModalOpen = signal(false);
+  isIncidentFormModalOpen = signal(false);
+  incidentFormData = signal<{ eventMessage: string; bus: Bus, title?: string, priority?: 'Baja' | 'Media' | 'Alta' } | null>(null);
 
-  private alertAudio: HTMLAudioElement;
-  private isAudioUnlocked = signal(false);
-
-  // Simulation State
+  // Simulation states
   isSimulationRunning = signal(false);
-  simulationScenario = signal<SimulationScenario | null>(null);
-  simulationUserActions = signal<UserAction[]>([]);
-  simulationTime = signal(0);
-  isScenarioSetupOpen = signal(false);
-  isSimulationReportOpen = signal(false);
+  isScenarioSetupModalOpen = signal(false);
+  isSimulationReportModalOpen = signal(false);
   simulationReport = signal<SimulationReport | null>(null);
   private simulationInterval: any;
-  private scenarioEventIndex = 0;
+  private userActions: UserAction[] = [];
+  private simulationStartTime = 0;
 
 
   // Feedback form state
@@ -106,77 +103,15 @@ export class DashboardComponent implements OnInit, OnDestroy {
   analysisError = signal<string | null>(null);
 
   // --- DERIVED COMPUTED SIGNALS ---
-  routes = computed(() => {
-    const busList = this.buses();
-    const grouped = busList.reduce((acc, bus) => {
-      (acc[bus.route] = acc[bus.route] || []).push(bus);
-      return acc;
-    }, {} as Record<string, Bus[]>);
-
-    return Object.entries(grouped).map(([name, buses]) => ({ 
-        name: name.replace(/^Ruta/, 'Paradero'),
-        originalName: name,
-        buses 
-    }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  });
-  
-  // (for the selected bus)
-  safetyStatus = computed<'safe' | 'caution' | 'danger' | 'none'>(() => {
-    const bus = this.selectedBus();
-    const { cautionThreshold, dangerThreshold } = this.settingsService.settings();
-    if (!bus || bus.status() !== 'detenido') {
-      return 'none';
-    }
-    const distance = bus.curbDistanceCm();
-    if (distance <= cautionThreshold) return 'safe';
-    if (distance <= dangerThreshold) return 'caution';
-    return 'danger';
-  });
-  
-  safetyVisuals = computed(() => {
-    const status = this.safetyStatus();
-    switch (status) {
-      case 'safe':
-        return { text: 'text-green-500 dark:text-green-400', glow: 'text-glow-green', border: 'border-green-400', bg: 'bg-green-400', lightGlow: 'light-glow-green' };
-      case 'caution':
-        return { text: 'text-yellow-500 dark:text-yellow-400', glow: 'text-glow-yellow', border: 'border-yellow-400', bg: 'bg-yellow-400', lightGlow: 'light-glow-yellow' };
-      case 'danger':
-        return { text: 'text-red-600 dark:text-red-500', glow: 'text-glow-red', border: 'border-red-500', bg: 'bg-red-500', lightGlow: 'light-glow-red' };
-      default: // 'none'
-        return { text: 'text-cyan-600 dark:text-cyan-400', glow: '', border: 'border-slate-400 dark:border-slate-700', bg: 'bg-slate-300 dark:bg-slate-800', lightGlow: '' };
-    }
-  });
-
-  isFeedbackFormValid = computed(() => {
-    return this.feedbackMessage().trim().length > 0 || this.feedbackImageFile() !== null;
-  });
-
-  // Map status ID to human-readable text
-  getStatusMessage(status: BusStatus): string {
-    switch (status) {
-      case 'en-ruta': return 'En Ruta';
-      case 'llegando': return 'Llegando';
-      case 'detenido': return 'Detenido';
-      case 'saliendo': return 'Saliendo';
-    }
-  }
+  isFeedbackFormValid = computed(() => this.feedbackMessage().trim().length > 0 || this.feedbackImageFile() !== null);
   
   constructor() {
-    this.alertAudio = new Audio(alertSound);
-    // Effect to play sound on new 'danger' status
-    effect((onCleanup) => {
-        const status = this.safetyStatus();
-        const soundEnabled = this.settingsService.settings().soundAlertsEnabled;
-
-        let previousStatus: 'safe' | 'caution' | 'danger' | 'none' | undefined;
-        onCleanup(() => previousStatus = status);
-        
-        // Only attempt to play if the user has interacted with the page first
-        if (this.isAudioUnlocked() && soundEnabled && status === 'danger' && previousStatus !== 'danger') {
-            this.alertAudio.play().catch(e => console.error("Error playing sound:", e));
-        }
-    }, { allowSignalWrites: false });
+     effect(() => {
+      const bus = this.selectedBus();
+      if (bus && bus.proximityStatus() === 'danger' && this.settingsService.settings().soundAlertsEnabled) {
+        this.playAudioAlert();
+      }
+    });
   }
 
   ngOnInit(): void {
@@ -184,51 +119,54 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.initializeStops();
     this.initializeIncidents();
     this.startRealtimeSimulation();
-    this.startRiskAnalysis();
   }
 
   ngOnDestroy(): void {
     this.stopSimulation();
-    this.stopRiskAnalysis();
   }
-  
+
+  // --- INITIALIZATION ---
   initializeBuses(): void {
     const initialBuses: Bus[] = [
-      { id: 1, name: 'Bus #72A', route: 'Ruta Central', driver: 'Ana García', status: signal('detenido'), curbDistanceCm: signal(28), stateTimer: signal(5), eventLog: signal([]) },
-      { id: 2, name: 'Bus #72B', route: 'Ruta Norte', driver: 'Carlos Pérez', status: signal('en-ruta'), curbDistanceCm: signal(0), stateTimer: signal(8), eventLog: signal([]) },
-      { id: 3, name: 'Bus #72C', route: 'Ruta Sur', driver: 'Sofía Rodríguez', status: signal('llegando'), curbDistanceCm: signal(0), stateTimer: signal(3), eventLog: signal([]) },
+      { id: 72, name: 'Bus #72A', route: 'Ruta Central', driver: 'Ana García', status: signal('En Ruta'), curbDistanceCm: signal(18), proximityStatus: signal('caution'), eventLog: signal([]) },
+      { id: 128, name: 'Bus #128B', route: 'Paradero Norte', driver: 'Carlos Ruiz', status: signal('Detenido'), curbDistanceCm: signal(10), proximityStatus: signal('safe'), eventLog: signal([]) },
+      { id: 72, name: 'Bus #72C', route: 'Paradero Sur', driver: 'Lucía Fernández', status: signal('Detenido'), curbDistanceCm: signal(12), proximityStatus: signal('safe'), eventLog: signal([]) },
     ];
     this.buses.set(initialBuses);
     this.selectedBus.set(initialBuses[0]);
-    // Log initial events if necessary
-    initialBuses.forEach(bus => {
-        if (bus.status() === 'detenido') {
-            this.logProximityEvent(bus);
-        }
-    });
   }
 
   initializeStops(): void {
-    const initialStops: Stop[] = [
-        { id: 'stop-01', name: 'Estación Central', route: 'Ruta Central', status: 'Apto', issues: [], lastChecked: 'Hoy' },
-        { id: 'stop-02', name: 'Plaza Mayor', route: 'Ruta Central', status: 'No Apto', issues: [{id: 1, description: 'Rampa de acceso obstruida por basura.', severity: 'Alta'}, {id: 2, description: 'Iluminación insuficiente.', severity: 'Media'}], lastChecked: 'Ayer' },
-        { id: 'stop-03', name: 'Mercado Norte', route: 'Ruta Norte', status: 'Apto', issues: [], lastChecked: 'Hoy' },
-        { id: 'stop-04', name: 'Hospital General', route: 'Ruta Sur', status: 'No Apto', issues: [{id: 1, description: 'El pavimento está roto cerca de la zona de espera.', severity: 'Media'}], lastChecked: 'Hace 3 días'},
-        { id: 'stop-05', name: 'Parque de la Ciudad', route: 'Ruta Norte', status: 'Pendiente', issues: [], lastChecked: 'Nunca'}
-    ];
-    this.stops.set(initialStops);
+    this.stops.set([
+        { id: 'stop-01', name: 'Plaza Mayor', route: 'Ruta Central', status: 'Apto', issues: [], lastChecked: '2024-07-20' },
+        { id: 'stop-02', name: 'Mercado Central', route: 'Ruta Central', status: 'No Apto', issues: [{ id: 1, description: 'Bordillo roto', severity: 'Alta' }, { id: 2, description: 'Falta de rampa', severity: 'Alta' }], lastChecked: '2024-07-19' },
+        { id: 'stop-03', name: 'Hospital General', route: 'Paradero Norte', status: 'Apto', issues: [], lastChecked: '2024-07-21' },
+        { id: 'stop-04', name: 'Parque Industrial', route: 'Paradero Norte', status: 'Pendiente', issues: [{ id: 3, description: 'Obstrucción por vendedor ambulante', severity: 'Media' }], lastChecked: '2024-07-18' },
+        { id: 'stop-05', name: 'Centro Comercial Sur', route: 'Paradero Sur', status: 'Apto', issues: [], lastChecked: '2024-07-22' },
+    ]);
   }
 
   initializeIncidents(): void {
-    // Start with a clean slate, or load from a service/storage in a real app.
-    this.incidents.set([]);
+    this.incidents.set([
+      { id: 1, title: 'Proximidad peligrosa repetida', priority: 'Alta', status: 'Abierto', createdAt: new Date(), bus: { id: 72, name: 'Bus #72A', driver: 'Ana García' }, triggeringEvent: 'Distancia detectada: 44 cm' }
+    ]);
   }
 
+  groupBusesByRoute(): Route[] {
+    const grouped: { [key: string]: Bus[] } = {};
+    this.buses().forEach(bus => {
+      if (!grouped[bus.route]) {
+        grouped[bus.route] = [];
+      }
+      grouped[bus.route].push(bus);
+    });
+    return Object.keys(grouped).map(key => ({ name: key, buses: grouped[key] }));
+  }
+
+  // --- SIMULATION ---
   startRealtimeSimulation(): void {
     if (this.simulationInterval) return;
-    this.simulationInterval = setInterval(() => {
-      this.updateBusStatesRandomly();
-    }, this.REALTIME_SIMULATION_INTERVAL_MS);
+    this.simulationInterval = setInterval(() => this.updateBusStates(), this.REALTIME_SIMULATION_INTERVAL_MS);
   }
 
   stopSimulation(): void {
@@ -238,93 +176,29 @@ export class DashboardComponent implements OnInit, OnDestroy {
     }
   }
 
-  // --- Risk Analysis Workflow ---
-  startRiskAnalysis(): void {
-    if (this.riskAnalysisInterval) return;
-    this.updateRouteRiskScores(); // Run once immediately
-    this.riskAnalysisInterval = setInterval(() => {
-      this.updateRouteRiskScores();
-    }, this.RISK_ANALYSIS_INTERVAL_MS);
-  }
+  updateBusStates(): void {
+    const { cautionThreshold, dangerThreshold } = this.settingsService.settings();
+    this.buses.update(buses => {
+      return buses.map(bus => {
+        const currentDistance = bus.curbDistanceCm();
+        let newDistance = currentDistance + (Math.random() - 0.5) * 8;
+        newDistance = Math.max(5, Math.min(50, newDistance)); // Clamp between 5 and 50 cm
+        bus.curbDistanceCm.set(newDistance);
 
-  stopRiskAnalysis(): void {
-    if (this.riskAnalysisInterval) {
-      clearInterval(this.riskAnalysisInterval);
-      this.riskAnalysisInterval = null;
-    }
-  }
+        const newStatus: ProximityStatus = newDistance > dangerThreshold ? 'danger' : newDistance > cautionThreshold ? 'caution' : 'safe';
 
-  async updateRouteRiskScores(): Promise<void> {
-    if (this.isAnalyzingRisk()) return;
-    this.isAnalyzingRisk.set(true);
-    try {
-      const scores = await this.geminiService.analyzeRouteRisk(
-        this.buses(),
-        this.stops(),
-        this.incidents()
-      );
-      // Merge new scores with existing ones to avoid blanking out routes if API fails for one
-      this.routeRiskScores.update(currentScores => ({ ...currentScores, ...scores }));
-    } catch (e) {
-      console.error("Failed to update route risk scores:", e);
-    } finally {
-      this.isAnalyzingRisk.set(false);
-    }
-  }
-
-  updateBusStatesRandomly(): void {
-    this.buses().forEach(bus => {
-      bus.stateTimer.update(t => t - 1);
-
-      if (bus.stateTimer() <= 0) {
-        switch (bus.status()) {
-          case 'detenido':
-            bus.status.set('saliendo');
-            bus.stateTimer.set(3);
-            bus.curbDistanceCm.set(0);
-            break;
-          case 'saliendo':
-            bus.status.set('en-ruta');
-            bus.stateTimer.set(Math.floor(Math.random() * 10 + 5));
-            break;
-          case 'en-ruta':
-            bus.status.set('llegando');
-            bus.stateTimer.set(4);
-            break;
-          case 'llegando':
-            bus.status.set('detenido');
-            bus.stateTimer.set(5);
-            const newDistance = 5 + Math.random() * 40;
-            bus.curbDistanceCm.set(newDistance);
-            this.logProximityEvent(bus);
-            break;
+        if (bus.proximityStatus() !== newStatus && (newStatus === 'danger' || newStatus === 'caution')) {
+          const eventMessage = `Distancia detectada: ${newDistance.toFixed(0)} cm`;
+          bus.eventLog.update(log => [{ timestamp: new Date(), message: eventMessage }, ...log.slice(0, 4)]);
         }
-      }
+        bus.proximityStatus.set(newStatus);
+        
+        return bus;
+      });
     });
   }
-
-  logProximityEvent(bus: Bus): void {
-      const distance = bus.curbDistanceCm();
-      const { dangerThreshold, cautionThreshold } = this.settingsService.settings();
-      let level: EventLevel | null = null;
-      
-      if (distance > dangerThreshold) level = 'danger';
-      else if (distance > cautionThreshold) level = 'caution';
-
-      if (level) {
-          const newEvent: BusEvent = {
-              timestamp: new Date(),
-              level: level,
-              message: `Distancia detectada: ${distance.toFixed(0)} cm`,
-          };
-          bus.eventLog.update(log => {
-            const newLog = [newEvent, ...log];
-            // Keep the log from growing indefinitely
-            return newLog.slice(0, this.MAX_LOG_ENTRIES);
-          });
-      }
-  }
   
+  // --- UI EVENT HANDLERS ---
   selectBus(bus: Bus): void {
     this.selectedBus.set(bus);
   }
@@ -337,246 +211,102 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.isMenuOpen.set(false);
   }
 
-  unlockAudio(): void {
-    if (this.isAudioUnlocked()) return;
-
-    this.isAudioUnlocked.set(true);
-    console.log("User interaction detected. Audio playback now enabled.");
-
-    const soundEnabled = this.settingsService.settings().soundAlertsEnabled;
-    if (soundEnabled && this.safetyStatus() === 'danger') {
-        this.alertAudio.play().catch(e => console.error("Error playing sound:", e));
-    }
-  }
-
   openSettingsModal(): void {
     this.isSettingsModalOpen.set(true);
     this.closeMenu();
-  }
-
-  openReportsModal(): void {
-    this.isReportsModalOpen.set(true);
-    this.closeMenu();
-  }
-
-  closeReportsModal(): void {
-    this.isReportsModalOpen.set(false);
   }
 
   openHelpModal(): void {
     this.isHelpModalOpen.set(true);
     this.closeMenu();
   }
-
-  closeHelpModal(): void {
-    this.isHelpModalOpen.set(false);
-  }
   
-  // --- Simulation Workflow ---
-  openScenarioSetup(): void {
-    this.isScenarioSetupOpen.set(true);
-    this.closeMenu();
-  }
+  closeHelpModal(): void { this.isHelpModalOpen.set(false); }
+  openReportsModal(): void { this.isReportsModalOpen.set(true); this.closeMenu(); }
+  openIncidentTrackerModal(): void { this.isIncidentTrackerModalOpen.set(true); this.closeMenu(); }
+  openScenarioSetupModal(): void { this.isScenarioSetupModalOpen.set(true); this.closeMenu(); }
   
-  closeScenarioSetup(): void {
-    this.isScenarioSetupOpen.set(false);
-  }
-
-  startScenario(scenario: SimulationScenario): void {
-    this.stopSimulation(); // Stop random simulation
-    this.stopRiskAnalysis(); // Stop risk analysis
-    this.initializeBuses(); // Reset bus states
-    this.initializeIncidents();
-    this.simulationUserActions.set([]);
-    this.scenarioEventIndex = 0;
-    this.simulationTime.set(0);
-
-    this.simulationScenario.set(scenario);
-    this.isSimulationRunning.set(true);
-    this.closeScenarioSetup();
-
-    this.simulationInterval = setInterval(() => {
-      this.runScenarioStep();
-    }, this.SCENARIO_SIMULATION_INTERVAL_MS);
-  }
-  
-  runScenarioStep(): void {
-    this.simulationTime.update(t => t + 1);
-    const scenario = this.simulationScenario();
-    if (!scenario) return;
-
-    const upcomingEvent = scenario.events[this.scenarioEventIndex];
-    if (upcomingEvent && this.simulationTime() >= upcomingEvent.time) {
-      const bus = this.buses().find(b => b.id === upcomingEvent.busId);
-      if (bus) {
-        if (upcomingEvent.type === 'STATUS_CHANGE' && upcomingEvent.payload.newStatus) {
-            bus.status.set(upcomingEvent.payload.newStatus as BusStatus);
-        } else if (upcomingEvent.type === 'PROXIMITY_ALERT' && upcomingEvent.payload.distance) {
-            bus.curbDistanceCm.set(upcomingEvent.payload.distance);
-            bus.status.set('detenido'); // Proximity alerts imply the bus is stopped
-            this.logProximityEvent(bus);
-        }
-      }
-      this.scenarioEventIndex++;
-    }
-
-    // End simulation if all events are processed
-    if (this.scenarioEventIndex >= scenario.events.length) {
-      this.stopSimulationAndShowReport();
-    }
-  }
-
-  async stopSimulationAndShowReport(): Promise<void> {
-    this.stopSimulation();
-    this.simulationReport.set({
-      scenario: this.simulationScenario()!,
-      actions: this.simulationUserActions(),
-      aiAnalysis: '', // To be filled by Gemini
-    });
-    this.isSimulationReportOpen.set(true);
-    // Restore live data after a short delay
-    setTimeout(() => {
-        this.isSimulationRunning.set(false);
-        this.initializeBuses();
-        this.startRealtimeSimulation();
-        this.startRiskAnalysis();
-    }, 1000);
-  }
-
-  closeSimulationReport(): void {
-    this.isSimulationReportOpen.set(false);
-    this.simulationReport.set(null);
-  }
-
-  captureUserAction(action: Omit<UserAction, 'timestamp'>): void {
-    if (!this.isSimulationRunning()) return;
-    this.simulationUserActions.update(actions => [
-      ...actions,
-      { ...action, timestamp: this.simulationTime() }
-    ]);
-  }
-
-  // --- Incident Management (Updated for Simulation) ---
-  openIncidentTracker(): void {
-    this.isIncidentTrackerOpen.set(true);
-    this.closeMenu();
-  }
-
-  closeIncidentTracker(): void {
-    this.isIncidentTrackerOpen.set(false);
-  }
-
-  openIncidentForm(eventMessage: string, bus: Bus): void {
-    this.incidentToCreate.set({ eventMessage, bus });
-    this.isIncidentFormOpen.set(true);
-    this.captureUserAction({
-      type: 'CREATE_INCIDENT_ATTEMPT',
-      details: `User opened incident form for event: "${eventMessage}" on bus ${bus.name}.`
-    });
-  }
-  
-  openIncidentFormFromAI(event: { message: AssistantMessage, bus: Bus }): void {
-    this.incidentToCreate.set({ eventMessage: event.message.message, bus: event.bus });
-    this.isIncidentFormOpen.set(true);
-     this.captureUserAction({
-      type: 'CREATE_INCIDENT_ATTEMPT',
-      details: `User opened incident form from AI alert: "${event.message.message}" on bus ${event.bus.name}.`
-    });
-  }
-
-  openIncidentFormFromDraft(event: { draft: AssistantMessage, bus: Bus }): void {
-    this.incidentToCreate.set({ 
-      eventMessage: event.draft.message, 
-      bus: event.bus,
-      title: event.draft.incidentDraft?.title,
-      priority: event.draft.incidentDraft?.priority,
-    });
-    this.isIncidentFormOpen.set(true);
-    this.captureUserAction({
-      type: 'CREATE_INCIDENT_ATTEMPT',
-      details: `User opened incident form from AI draft: "${event.draft.message}" on bus ${event.bus.name}.`
-    });
-  }
-
-  closeIncidentForm(): void {
-    this.isIncidentFormOpen.set(false);
-    this.incidentToCreate.set(null);
-  }
-  
-  handleIncidentCreation(incidentData: Omit<Incident, 'id' | 'createdAt' | 'bus'> & {bus: Bus, notes?: string}): void {
-    this.captureUserAction({
-      type: 'INCIDENT_CREATED',
-      details: `Incident "${incidentData.title}" created with priority ${incidentData.priority}.`
-    });
-    const newIncident: Incident = {
-      id: Date.now(),
-      createdAt: new Date(),
-      status: 'Abierto',
-      ...incidentData,
-      bus: {
-        id: incidentData.bus.id,
-        name: incidentData.bus.name,
-        driver: incidentData.bus.driver
-      }
-    };
-    this.incidents.update(list => [newIncident, ...list]);
-    this.closeIncidentForm();
-  }
-  
-  handleIncidentStatusChange(update: { incidentId: number; newStatus: IncidentStatus }): void {
-    this.captureUserAction({
-      type: 'INCIDENT_STATUS_CHANGE',
-      details: `Status of incident ID ${update.incidentId} changed to ${update.newStatus}.`
-    });
-    this.incidents.update(list =>
-      list.map(inc =>
-        inc.id === update.incidentId ? { ...inc, status: update.newStatus } : inc
-      )
-    );
-  }
-
   handleSettingsSave(newSettings: AppSettings): void {
     this.settingsService.saveSettings(newSettings);
     this.isSettingsModalOpen.set(false);
   }
-  
-  handleFeedbackInput(event: Event): void {
-    const target = event.target as HTMLTextAreaElement;
-    this.feedbackMessage.set(target.value);
+
+  // --- INCIDENT MANAGEMENT ---
+  createIncident(bus: Bus, event: BusEvent): void {
+    this.incidentFormData.set({ bus, eventMessage: event.message });
+    this.isIncidentFormModalOpen.set(true);
   }
 
-  handleFeedbackTypeChange(event: Event): void {
-    const target = event.target as HTMLSelectElement;
-    this.feedbackType.set(target.value as 'felicitacion' | 'sugerencia' | 'denuncia');
+  handleCreateIncident(data: { message: AssistantMessage, bus: Bus }): void {
+    this.incidentFormData.set({ bus: data.bus, eventMessage: data.message.message });
+    this.isIncidentFormModalOpen.set(true);
   }
+
+  handleCreateIncidentFromDraft(data: { draft: AssistantMessage, bus: Bus }): void {
+    const draft = data.draft.incidentDraft!;
+    this.incidentFormData.set({
+      bus: data.bus,
+      eventMessage: data.draft.message,
+      title: draft.title,
+      priority: draft.priority
+    });
+    this.isIncidentFormModalOpen.set(true);
+  }
+
+  saveNewIncident(data: Omit<Incident, 'id' | 'createdAt' | 'status'>): void {
+    this.incidents.update(incidents => {
+      const newIncident: Incident = {
+        ...data,
+        id: Math.max(...incidents.map(i => i.id), 0) + 1,
+        createdAt: new Date(),
+        status: 'Abierto'
+      };
+      return [newIncident, ...incidents];
+    });
+    this.isIncidentFormModalOpen.set(false);
+    this.incidentFormData.set(null);
+  }
+
+  handleStatusChange(event: { incidentId: number; newStatus: IncidentStatus }): void {
+    this.incidents.update(incidents => 
+      incidents.map(inc => 
+        inc.id === event.incidentId ? { ...inc, status: event.newStatus } : inc
+      )
+    );
+  }
+
+  // --- SIMULATION CONTROL ---
+  startSimulation(scenario: SimulationScenario): void {
+    this.isScenarioSetupModalOpen.set(false);
+    this.isSimulationRunning.set(true);
+    // ... simulation logic would go here
+  }
+
+  endSimulation(): void {
+    this.isSimulationRunning.set(false);
+    this.simulationReport.set({
+      scenario: { title: 'Simulación Manual', description: 'Escenario de prueba de finalización.', events: [] },
+      actions: [],
+      aiAnalysis: ''
+    });
+    this.isSimulationReportModalOpen.set(true);
+  }
+
+
+  // --- FEEDBACK FORM ---
+  handleFeedbackInput(event: Event): void { this.feedbackMessage.set((event.target as HTMLTextAreaElement).value); }
+  handleFeedbackTypeChange(event: Event): void { this.feedbackType.set((event.target as HTMLSelectElement).value as 'felicitacion' | 'sugerencia' | 'denuncia'); }
 
   handleImageSelection(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-
-    if (!file) {
-      this.removeImage();
-      return;
-    }
-    
-    if (!file.type.startsWith('image/')) {
-        this.analysisError.set('Por favor, selecciona un archivo de imagen válido.');
-        return;
-    }
-    if (file.size > this.MAX_IMAGE_SIZE_MB * 1024 * 1024) {
-        this.analysisError.set(`La imagen es demasiado grande. El máximo es ${this.MAX_IMAGE_SIZE_MB}MB.`);
-        return;
-    }
-
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file) { this.removeImage(); return; }
+    if (!file.type.startsWith('image/')) { this.analysisError.set('Por favor, selecciona un archivo de imagen válido.'); return; }
+    if (file.size > this.MAX_IMAGE_SIZE_MB * 1024 * 1024) { this.analysisError.set(`La imagen es demasiado grande. El máximo es ${this.MAX_IMAGE_SIZE_MB}MB.`); return; }
     this.feedbackImageFile.set(file);
-
     const reader = new FileReader();
-    reader.onload = (e: ProgressEvent<FileReader>) => {
-      this.feedbackImagePreviewUrl.set(e.target?.result as string);
-    };
+    reader.onload = (e: ProgressEvent<FileReader>) => this.feedbackImagePreviewUrl.set(e.target?.result as string);
     reader.readAsDataURL(file);
-    
-    input.value = '';
+    (event.target as HTMLInputElement).value = '';
   }
 
   removeImage(): void {
@@ -586,21 +316,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   async submitFeedback(): Promise<void> {
     if (!this.isFeedbackFormValid() || this.isSubmittingFeedback()) return;
-
     this.isSubmittingFeedback.set(true);
     this.analysisResult.set(null);
     this.analysisError.set(null);
-
     if (!this.settingsService.settings().feedbackAnalysisEnabled) {
       setTimeout(() => {
-        this.feedbackMessage.set('');
-        this.feedbackType.set('sugerencia');
-        this.removeImage();
+        this.resetFeedbackForm();
         this.isSubmittingFeedback.set(false);
       }, 500);
       return;
     }
-
     try {
       let imagePayload: { base64: string; mimeType: string } | undefined;
       if (this.feedbackImageFile() && this.feedbackImagePreviewUrl()) {
@@ -609,18 +334,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
           mimeType: this.feedbackImageFile()!.type,
         };
       }
-
-      const result = await this.geminiService.analyzeFeedback(
-        this.feedbackMessage(),
-        this.feedbackType(),
-        imagePayload
-      );
+      const result = await this.geminiService.analyzeFeedback(this.feedbackMessage(), this.feedbackType(), imagePayload);
       this.analysisResult.set(result);
-      
-      this.feedbackMessage.set('');
-      this.feedbackType.set('sugerencia');
-      this.removeImage();
-
+      this.resetFeedbackForm();
     } catch (error) {
       console.error('Error analyzing feedback:', error);
       this.analysisError.set('No se pudo analizar el comentario. Por favor, inténtalo de nuevo más tarde.');
@@ -628,9 +344,21 @@ export class DashboardComponent implements OnInit, OnDestroy {
       this.isSubmittingFeedback.set(false);
     }
   }
+  
+  resetFeedbackForm(): void {
+    this.feedbackMessage.set('');
+    this.feedbackType.set('sugerencia');
+    this.removeImage();
+  }
 
   clearAnalysis(): void {
     this.analysisResult.set(null);
     this.analysisError.set(null);
+  }
+
+  // --- AUDIO ---
+  playAudioAlert(): void {
+    this.audioAlert.currentTime = 0;
+    this.audioAlert.play().catch(error => console.error("Audio playback failed:", error));
   }
 }

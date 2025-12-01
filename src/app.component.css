@@ -1,0 +1,4 @@
+/* Añade un efecto de resplandor sutil para el estado de peligro */
+.bg-red-500\/20 {
+  box-shadow: 0 0 30px rgba(239, 68, 68, 0.25);
+}

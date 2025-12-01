@@ -34,10 +34,15 @@ export class IncidentFormModalComponent implements OnInit {
     if (!this.title().trim()) {
         return; // Basic validation
     }
+    const busData = this.data().bus;
     this.save.emit({
       title: this.title(),
       priority: this.priority(),
-      bus: this.data().bus,
+      bus: {
+        id: busData.id,
+        name: busData.name,
+        driver: busData.driver,
+      },
       triggeringEvent: this.data().eventMessage,
       notes: this.notes()
     });

@@ -28,7 +28,8 @@ export class AiAssistantComponent {
 
   constructor() {
     effect((onCleanup) => {
-      // Create a dependency on the event logs of all buses
+      // The effect should depend on data that changes to trigger re-analysis.
+      // We'll watch the event logs of all buses.
       const eventState = JSON.stringify(this.buses().map(b => b.eventLog()));
 
       // This is a workaround to prevent the effect from running on initial component load

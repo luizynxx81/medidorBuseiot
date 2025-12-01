@@ -1,0 +1,88 @@
+<main class="bg-gray-900 min-h-screen text-white font-sans p-4 sm:p-8">
+  <div class="max-w-4xl mx-auto">
+    
+    <header class="text-center mb-8">
+      <h1 class="text-4xl font-extrabold text-cyan-400 tracking-tight">
+        Monitor de Distancia IoT
+      </h1>
+      <p class="text-slate-400 mt-2">Visualizador en tiempo real de datos de Supabase</p>
+    </header>
+
+    @if (error()) {
+      <div class="bg-red-900 border border-red-500 text-red-300 p-4 rounded-lg text-center">
+        <p class="font-bold">Error de Conexión</p>
+        <p>{{ error() }}</p>
+      </div>
+    } @else {
+      <!-- Latest Measurement Card -->
+      <section class="mb-10">
+        <h2 class="text-lg font-semibold text-slate-300 mb-3">Última Medición</h2>
+        @if (latestMeasurement(); as measurement) {
+          @let isDanger = measurement.datos_sensor.distancia_cm < DANGER_THRESHOLD_CM;
+          <div 
+            class="p-8 rounded-2xl border transition-all duration-300"
+            [class.bg-red-500/20]="isDanger"
+            [class.border-red-500]="isDanger"
+            [class.bg-slate-800/50]="!isDanger"
+            [class.border-slate-700]="!isDanger">
+            <div class="text-center">
+              <p class="text-sm text-slate-400">{{ measurement.device_id }}</p>
+              <p 
+                class="text-8xl font-black tracking-tighter my-2"
+                [class.text-red-400]="isDanger"
+                [class.text-white]="!isDanger">
+                {{ measurement.datos_sensor.distancia_cm }}
+              </p>
+              <p 
+                class="text-2xl font-bold -mt-4"
+                [class.text-red-500]="isDanger"
+                [class.text-slate-500]="!isDanger">
+                cm
+              </p>
+              <p class="text-xs text-slate-500 mt-4">{{ measurement.created_at | date:'medium' }}</p>
+            </div>
+          </div>
+        } @else {
+          <div class="p-8 rounded-2xl border border-slate-700 bg-slate-800/50 text-center animate-pulse">
+            <p class="text-slate-400">Esperando datos...</p>
+          </div>
+        }
+      </section>
+
+      <!-- History Table -->
+      <section>
+        <h2 class="text-lg font-semibold text-slate-300 mb-3">Historial (Últimas 10)</h2>
+        <div class="overflow-x-auto bg-slate-800/50 border border-slate-700 rounded-lg">
+          <table class="w-full text-sm text-left text-slate-300">
+            <thead class="text-xs text-slate-400 uppercase bg-slate-800">
+              <tr>
+                <th scope="col" class="px-6 py-3">ID Dispositivo</th>
+                <th scope="col" class="px-6 py-3 text-right">Distancia (cm)</th>
+                <th scope="col" class="px-6 py-3">Timestamp</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of history(); track item.id) {
+                <tr class="border-b border-slate-700 hover:bg-slate-700/50">
+                  <td class="px-6 py-4 font-medium text-white">{{ item.device_id }}</td>
+                  <td 
+                    class="px-6 py-4 text-right font-bold"
+                    [class.text-red-400]="item.datos_sensor.distancia_cm < DANGER_THRESHOLD_CM">
+                    {{ item.datos_sensor.distancia_cm }}
+                  </td>
+                  <td class="px-6 py-4 text-slate-400">{{ item.created_at | date:'short' }}</td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="3" class="px-6 py-4 text-center text-slate-500">
+                    No hay datos históricos disponibles.
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+    }
+  </div>
+</main>

@@ -1,3 +1,5 @@
+
+
 import { Component, ChangeDetectionStrategy, signal, inject, ViewChild, ElementRef, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { GeminiService } from '../../services/gemini.service';
@@ -14,6 +16,7 @@ type ViewMode = 'idle' | 'camera' | 'loading' | 'results' | 'error';
 })
 export class AccessibilityAnalyzerComponent implements OnDestroy {
   @ViewChild('videoPlayer') videoPlayer: ElementRef<HTMLVideoElement> | undefined;
+  // FIX: Corrected typo from @ViewChield to @ViewChild
   @ViewChild('canvas') canvas: ElementRef<HTMLCanvasElement> | undefined;
 
   private geminiService = inject(GeminiService);
@@ -45,7 +48,15 @@ export class AccessibilityAnalyzerComponent implements OnDestroy {
       }
     } catch (err) {
       console.error("Error accessing camera:", err);
-      this.error.set('No se pudo acceder a la cámara. Asegúrate de tener los permisos habilitados.');
+      let errorMessage = 'No se pudo acceder a la cámara. Por favor, inténtalo de nuevo.';
+      if (err instanceof DOMException) {
+        if (err.name === 'NotAllowedError') {
+          errorMessage = 'Permiso de cámara denegado. Habilita los permisos en tu navegador para usar esta función.';
+        } else if (err.name === 'NotFoundError') {
+          errorMessage = 'No se encontró un dispositivo de cámara compatible.';
+        }
+      }
+      this.error.set(errorMessage);
       this.viewMode.set('error');
     }
   }

@@ -1,5 +1,3 @@
-import { BusEvent, Bus } from "../components/dashboard/dashboard.component";
-
 export type IncidentPriority = 'Baja' | 'Media' | 'Alta';
 export type IncidentStatus = 'Abierto' | 'En Progreso' | 'Resuelto';
 
