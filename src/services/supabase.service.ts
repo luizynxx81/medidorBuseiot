@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { createClient, SupabaseClient, RealtimeChannel } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { environment } from '../environments/environment';
 
 // Define un tipo para nuestros datos de medición para mayor seguridad de tipos
@@ -36,24 +36,5 @@ export class SupabaseService {
     }
 
     return { latest: data?.[0] ?? null, history: data ?? [] };
-  }
-
-  listenToChanges(callback: (payload: Measurement) => void): RealtimeChannel {
-    const channel = this.supabase
-      .channel('mediciones_distancia_changes')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'mediciones_distancia' },
-        (payload) => {
-          callback(payload.new as Measurement);
-        }
-      )
-      .subscribe();
-
-    return channel;
-  }
-  
-  removeChannel(channel: RealtimeChannel) {
-    this.supabase.removeChannel(channel);
   }
 }

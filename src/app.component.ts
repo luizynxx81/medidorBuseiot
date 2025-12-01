@@ -1,7 +1,6 @@
 import { Component, signal, OnInit, OnDestroy, ChangeDetectionStrategy, inject, computed } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { SupabaseService, Measurement } from './services/supabase.service';
-import { RealtimeChannel } from '@supabase/supabase-js';
 
 export type MeasurementStatus = 'safe' | 'caution' | 'danger';
 
@@ -19,12 +18,11 @@ export interface DisplayMeasurement extends Measurement {
 })
 export class AppComponent implements OnInit, OnDestroy {
   private supabaseService = inject(SupabaseService);
+  private pollingInterval: any;
 
   latestMeasurement = signal<DisplayMeasurement | null>(null);
   history = signal<DisplayMeasurement[]>([]);
   error = signal<string | null>(null);
-
-  private channel: RealtimeChannel | undefined;
 
   // --- THRESHOLDS ---
   readonly CAUTION_THRESHOLD_CM = 15;
@@ -45,20 +43,20 @@ export class AppComponent implements OnInit, OnDestroy {
     return { status: 'safe', text: 'Distancia Segura', isDanger: false, isCaution: false, isSafe: true };
   });
 
-  async ngOnInit(): Promise<void> {
+  ngOnInit(): void {
+    this.fetchData(); // Fetch immediately on load
+    this.pollingInterval = setInterval(() => this.fetchData(), 500); // Poll every 0.5 seconds
+  }
+
+  async fetchData(): Promise<void> {
     try {
       const { latest, history } = await this.supabaseService.getInitialData();
       
       this.latestMeasurement.set(latest ? this.addStatusToMeasurement(latest) : null);
       this.history.set(history.map(this.addStatusToMeasurement.bind(this)));
-
-      this.channel = this.supabaseService.listenToChanges((newMeasurement) => {
-        const measurementWithStatus = this.addStatusToMeasurement(newMeasurement);
-        this.latestMeasurement.set(measurementWithStatus);
-        this.history.update(currentHistory => 
-            [measurementWithStatus, ...currentHistory].slice(0, 10)
-        );
-      });
+      
+      // Clear any previous error on a successful fetch
+      this.error.set(null);
 
     } catch (err) {
       const typedError = err as { message?: string };
@@ -75,8 +73,8 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    if (this.channel) {
-      this.supabaseService.removeChannel(this.channel);
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval);
     }
   }
 
