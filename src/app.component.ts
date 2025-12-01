@@ -33,6 +33,15 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
   history = signal<DisplayMeasurement[]>([]);
   error = signal<string | null>(null);
 
+  // D3 Chart properties
+  private svg: any;
+  private x: any;
+  private y: any;
+  private xAxis: any;
+  private yAxis: any;
+  private line: any;
+  private chartInitialized = false;
+
   // --- THRESHOLDS ---
   readonly CAUTION_THRESHOLD_CM = 15;
   readonly DANGER_THRESHOLD_CM = 25;
@@ -86,9 +95,10 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   ngAfterViewInit(): void {
-    // The chart can only be drawn after the view is initialized
+    this.initChart();
+    // Call update in case data arrived before the view was initialized
     if (this.history().length > 0) {
-      this.drawChart();
+      this.updateChart();
     }
   }
 
@@ -115,26 +125,34 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
       this.latestMeasurement.set(newLatest);
       this.history.set(history.map(this.addStatusToMeasurement.bind(this)));
       
-      this.drawChart();
+      this.updateChart();
       this.error.set(null);
 
     } catch (err: unknown) {
       let errorMessage = 'Ocurrió un error inesperado.';
-      if (err && typeof err === 'object' && 'message' in err) {
-        // This is a safer check for Supabase-like error objects
+  
+      if (err && typeof err === 'object' && 'message' in err && typeof (err as any).message === 'string') {
         const typedError = err as { message: string };
-        errorMessage = `Error al obtener datos: ${typedError.message}`;
-        if (typedError.message.includes('security policies') || typedError.message.includes('permission denied')) {
-          errorMessage += '\n\nSugerencia: Revisa que Row Level Security (RLS) esté habilitado en Supabase y que exista una política que permita la lectura (`SELECT`) para usuarios anónimos.';
+        errorMessage = typedError.message;
+        
+        if (errorMessage.includes('security policies') || errorMessage.includes('permission denied')) {
+          this.error.set(
+            `Error de Permiso: ${errorMessage}\n\n` +
+            `Sugerencia: Parece un problema de Row Level Security (RLS). ` +
+            `Asegúrate de que la tabla 'mediciones_distancia' tenga una política que permita la lectura ('SELECT') para el rol 'anon'.`
+          );
+        } else {
+          this.error.set(`Error al obtener datos: ${errorMessage}`);
         }
-      } else if (typeof err === 'string') {
-        errorMessage = err;
       } else {
-        // If we still can't figure it out, log it and show a generic message.
-        console.error("Unknown error structure:", err);
-        errorMessage = 'No se pudo conectar con la base de datos. Revisa la consola para más detalles.';
+        try {
+          errorMessage = JSON.stringify(err, null, 2);
+        } catch {
+          errorMessage = 'No se pudo procesar el objeto de error. Revisa la consola.';
+        }
+        this.error.set(`Error inesperado:\n${errorMessage}`);
       }
-      this.error.set(errorMessage);
+
       console.error('Error completo:', err);
     }
   }
@@ -187,70 +205,89 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
       this.audioAlert.play().catch(error => console.error("Audio playback failed:", error));
     }
   }
-
-  private drawChart(): void {
-    const data = this.history().slice().reverse(); // d3 needs chronological order
-    if (!data.length || !this.chartContainer) {
-      return;
-    }
+  
+  private initChart(): void {
+    if (!this.chartContainer) return;
 
     const el = this.chartContainer.nativeElement;
-    d3.select(el).select('svg').remove();
-
     const margin = { top: 20, right: 20, bottom: 30, left: 40 };
     const width = el.clientWidth - margin.left - margin.right;
     const height = 200 - margin.top - margin.bottom;
 
-    const svg = d3.select(el).append('svg')
+    this.svg = d3.select(el).append('svg')
       .attr('width', width + margin.left + margin.right)
       .attr('height', height + margin.top + margin.bottom)
       .append('g')
       .attr('transform', `translate(${margin.left},${margin.top})`);
 
-    const x = d3.scaleTime()
-      .domain(d3.extent(data, d => new Date(d.created_at)) as [Date, Date])
-      .range([0, width]);
+    this.x = d3.scaleTime().range([0, width]);
+    this.y = d3.scaleLinear().range([height, 0]);
 
-    svg.append('g')
-      .attr('transform', `translate(0,${height})`)
-      .call(d3.axisBottom(x).ticks(5).tickSizeOuter(0));
+    this.xAxis = this.svg.append('g')
+      .attr('transform', `translate(0,${height})`);
 
-    const y = d3.scaleLinear()
-      .domain([0, d3.max(data, d => d.datos_sensor.distancia_cm) as number + 10])
-      .range([height, 0]);
+    this.yAxis = this.svg.append('g');
 
-    svg.append('g')
-      .call(d3.axisLeft(y).ticks(5).tickSizeOuter(0));
+    this.line = d3.line<DisplayMeasurement>()
+      .x(d => this.x(new Date(d.created_at)))
+      .y(d => this.y(d.datos_sensor.distancia_cm));
       
-    const tooltip = d3.select(el).append('div')
-      .attr('class', 'chart-tooltip');
-
-    const line = d3.line<DisplayMeasurement>()
-      .x(d => x(new Date(d.created_at)))
-      .y(d => y(d.datos_sensor.distancia_cm));
-
-    svg.append('path')
-      .datum(data)
+    this.svg.append('path')
+      .attr('class', 'line')
       .attr('fill', 'none')
       .attr('stroke', '#22d3ee')
-      .attr('stroke-width', 2.5)
-      .attr('d', line);
+      .attr('stroke-width', 2.5);
+      
+    // Create tooltip once
+    d3.select(el).select('.chart-tooltip').remove();
+    d3.select(el).append('div').attr('class', 'chart-tooltip');
+    
+    this.chartInitialized = true;
+  }
 
-    svg.selectAll('circle')
-      .data(data)
-      .enter()
+  private updateChart(): void {
+    if (!this.chartInitialized || !this.history().length || !this.chartContainer) {
+      return;
+    }
+
+    const data = this.history().slice().reverse(); // d3 needs chronological order
+    const el = this.chartContainer.nativeElement;
+    const tooltip = d3.select(el).select('.chart-tooltip');
+
+    // Update domains
+    this.x.domain(d3.extent(data, d => new Date(d.created_at)) as [Date, Date]);
+    this.y.domain([0, d3.max(data, d => d.datos_sensor.distancia_cm) as number + 10]);
+
+    // Update axes
+    this.xAxis.transition().duration(250).call(d3.axisBottom(this.x).ticks(5).tickSizeOuter(0));
+    this.yAxis.transition().duration(250).call(d3.axisLeft(this.y).ticks(5).tickSizeOuter(0));
+
+    // Update line path
+    this.svg.select('.line')
+      .datum(data)
+      .transition()
+      .duration(250)
+      .attr('d', this.line);
+
+    // Data join for circles
+    const circles = this.svg.selectAll('circle')
+      .data(data, (d: any) => d.id);
+
+    // EXIT: Remove old elements
+    circles.exit().remove();
+
+    // ENTER: Create new elements
+    circles.enter()
       .append('circle')
-      .attr('cx', d => x(new Date(d.created_at)))
-      .attr('cy', d => y(d.datos_sensor.distancia_cm))
       .attr('r', 5)
       .attr('fill', '#22d3ee')
       .attr('stroke', '#1e293b')
       .attr('stroke-width', 2)
       .style('cursor', 'pointer')
-      .on('mouseover', (event, d) => {
+      .on('mouseover', (event: any, d: any) => {
         tooltip.style('opacity', 1);
       })
-      .on('mousemove', (event, d) => {
+      .on('mousemove', (event: any, d: any) => {
         const time = new DatePipe('en-US').transform(d.created_at, 'mediumTime');
         tooltip.html(`<strong>${d.datos_sensor.distancia_cm} cm</strong><br>${time}`)
           .style('left', `${event.pageX + 15}px`)
@@ -258,6 +295,12 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
       })
       .on('mouseout', () => {
         tooltip.style('opacity', 0);
-      });
+      })
+      // MERGE: Apply updates to both new and existing elements
+      .merge(circles)
+      .transition()
+      .duration(250)
+      .attr('cx', (d: any) => this.x(new Date(d.created_at)))
+      .attr('cy', (d: any) => this.y(d.datos_sensor.distancia_cm));
   }
 }
