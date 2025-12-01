@@ -118,17 +118,24 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
       this.drawChart();
       this.error.set(null);
 
-    } catch (err) {
-      const typedError = err as { message?: string };
-      let errorMessage = 'No se pudo conectar con la base de datos.';
-      if (typedError.message) {
+    } catch (err: unknown) {
+      let errorMessage = 'Ocurrió un error inesperado.';
+      if (err && typeof err === 'object' && 'message' in err) {
+        // This is a safer check for Supabase-like error objects
+        const typedError = err as { message: string };
         errorMessage = `Error al obtener datos: ${typedError.message}`;
-        if (typedError.message.includes('security policies')) {
-          errorMessage += '\nSugerencia: Revisa que Row Level Security (RLS) esté habilitado en Supabase y que exista una política que permita la lectura (`SELECT`) para usuarios anónimos.';
+        if (typedError.message.includes('security policies') || typedError.message.includes('permission denied')) {
+          errorMessage += '\n\nSugerencia: Revisa que Row Level Security (RLS) esté habilitado en Supabase y que exista una política que permita la lectura (`SELECT`) para usuarios anónimos.';
         }
+      } else if (typeof err === 'string') {
+        errorMessage = err;
+      } else {
+        // If we still can't figure it out, log it and show a generic message.
+        console.error("Unknown error structure:", err);
+        errorMessage = 'No se pudo conectar con la base de datos. Revisa la consola para más detalles.';
       }
       this.error.set(errorMessage);
-      console.error(err);
+      console.error('Error completo:', err);
     }
   }
 
@@ -214,6 +221,9 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
 
     svg.append('g')
       .call(d3.axisLeft(y).ticks(5).tickSizeOuter(0));
+      
+    const tooltip = d3.select(el).append('div')
+      .attr('class', 'chart-tooltip');
 
     const line = d3.line<DisplayMeasurement>()
       .x(d => x(new Date(d.created_at)))
@@ -232,7 +242,22 @@ export class AppComponent implements OnInit, OnDestroy, AfterViewInit {
       .append('circle')
       .attr('cx', d => x(new Date(d.created_at)))
       .attr('cy', d => y(d.datos_sensor.distancia_cm))
-      .attr('r', 4)
-      .attr('fill', '#22d3ee');
+      .attr('r', 5)
+      .attr('fill', '#22d3ee')
+      .attr('stroke', '#1e293b')
+      .attr('stroke-width', 2)
+      .style('cursor', 'pointer')
+      .on('mouseover', (event, d) => {
+        tooltip.style('opacity', 1);
+      })
+      .on('mousemove', (event, d) => {
+        const time = new DatePipe('en-US').transform(d.created_at, 'mediumTime');
+        tooltip.html(`<strong>${d.datos_sensor.distancia_cm} cm</strong><br>${time}`)
+          .style('left', `${event.pageX + 15}px`)
+          .style('top', `${event.pageY - 28}px`);
+      })
+      .on('mouseout', () => {
+        tooltip.style('opacity', 0);
+      });
   }
 }
